@@ -1,0 +1,9 @@
+imports {
+    give_string_to_host(string: Str)
+    return_string_to_guest() -> String
+}
+
+exports {
+    return_string_to_host() -> String
+    give_string_to_guest(string: Str)
+}
