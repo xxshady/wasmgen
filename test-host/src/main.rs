@@ -20,7 +20,11 @@ impl host::imports::Imports for State {
     }
 
     fn return_string_to_guest(&self) -> String {
-        "string for guest ᓚᘏᗢ".to_string()
+        "ᗢ".to_string()
+    }
+
+    fn log(&self, msg: String) {
+        println!("[guest log] {msg}");
     }
 }
 
@@ -123,11 +127,13 @@ fn main() -> wasmtime::Result<()> {
     //     bench();
     // }
 
+    exports.call_pre_main().unwrap();
+
+    // let string = "string for guest (●'◡'●)".to_string();
+    // exports.call_give_string_to_guest(&string).unwrap();
+    // dbg!(exports.call_return_string_to_host().unwrap());
+
     exports.call_main().unwrap();
-    exports
-        .call_give_string_to_guest("string for guest (●'◡'●)")
-        .unwrap();
-    dbg!(exports.call_return_string_to_host().unwrap());
 
     Ok(())
 }

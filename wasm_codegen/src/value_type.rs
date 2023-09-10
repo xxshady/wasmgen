@@ -104,7 +104,8 @@ value_type!(
     // String should only be used when in return of function
     String rust: "String" kind: String repr: FatPtr can_be_param: false;
     // Str should only be used when passing params to function
-    Str rust: "&str" de: "String" kind: String repr: FatPtr can_be_param: true;
+    // &String and not &str because it must be allocated in dynamic memory
+    Str rust: "&String" de: "String" kind: String repr: FatPtr can_be_param: true;
     OptionBool rust: "Option<bool>" kind: FatPtr repr: FatPtr can_be_param: true;
     Vector3 rust: "altv_wasm_shared::Vector3" kind: FatPtr repr: FatPtr can_be_param: true;
 );

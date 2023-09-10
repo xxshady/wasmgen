@@ -1,6 +1,8 @@
 imports {
     give_string_to_host(string: Str)
     return_string_to_guest() -> String
+
+    log(msg: Str)
 }
 
 exports {

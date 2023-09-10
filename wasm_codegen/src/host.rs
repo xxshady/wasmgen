@@ -336,7 +336,8 @@ pub(crate) fn impl_imports(input: TokenStream) -> proc_macro2::TokenStream {
 
                         let size = bytes.len().try_into()?;
                         let ptr = alloc.call(&mut caller, size)?;
-                        memory.write(&mut caller, ptr as usize, &bytes)?;
+
+                        memory.write(&mut caller, ptr as usize, bytes)?;
 
                         Ok(super::__shared::to_fat_ptr(ptr, size))
                     }
