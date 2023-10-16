@@ -209,7 +209,7 @@ pub(crate) fn impl_imports(input: TokenStream) -> proc_macro2::TokenStream {
                     quote! { #name == 1 }
                 }
                 ValueKind::String => {
-                    quote! { read_string_from_guest(&mut caller, #name).unwrap() }
+                    quote! { read_string_ref_from_guest(&mut caller, #name).unwrap() }
                 }
             };
 
@@ -279,11 +279,19 @@ pub(crate) fn impl_imports(input: TokenStream) -> proc_macro2::TokenStream {
         quote! {
             pub mod imports {
                 pub trait Imports {
+                    fn get_memory(&self) -> Option<wasmtime::Memory>;
+                    fn set_memory(&mut self, memory: wasmtime::Memory);
+
+                    fn get_free(&self) -> Option<wasmtime::TypedFunc<super::FatPtr, ()>>;
+                    fn set_free(&mut self, free: wasmtime::TypedFunc<super::FatPtr, ()>);
+
+                    fn get_alloc(&self) -> Option<wasmtime::TypedFunc<super::Size, super::Ptr>>;
+                    fn set_alloc(&mut self, alloc: wasmtime::TypedFunc<super::Size, super::Ptr>);
+
                     #( #trait_methods )*
                 }
 
                 pub fn add_to_linker<U: Imports>(linker: &mut wasmtime::Linker<U>) {
-                    // TODO: caching in U (State)
                     fn get_memory_and<U: Imports, Params: wasmtime::WasmParams, Results: wasmtime::WasmResults>(
                         caller: &mut wasmtime::Caller<U>,
                         and: &'static str,
@@ -301,30 +309,43 @@ pub(crate) fn impl_imports(input: TokenStream) -> proc_macro2::TokenStream {
                     fn read_to_buffer<U: Imports>(
                         mut caller: &mut wasmtime::Caller<U>,
                         fat_ptr: super::__shared::FatPtr,
+                        call_free: bool,
                     ) -> wasmtime::Result<Vec<u8>> {
-                        let (memory, free) = get_memory_and::<U, super::__shared::FatPtr, ()>(caller, "__custom_free");
+                        let memory = caller.data().get_memory();
+                        let free = caller.data().get_free();
+                        let (memory, free) = if free.is_some() {
+                            (memory.unwrap(), free.unwrap())
+                        } else {
+                            get_memory_and(caller, "__custom_free")
+                        };
 
                         let (ptr, size) = super::__shared::from_fat_ptr(fat_ptr);
                         let mut buffer = vec![0; size as usize];
                         memory.read(&caller, ptr as usize, &mut buffer)?;
-                        free.call(caller, fat_ptr)?;
+                        if call_free {
+                            free.call(&mut caller, fat_ptr)?;
+                        }
+
+                        let data = caller.data_mut();
+                        data.set_memory(memory);
+                        data.set_free(free);
 
                         Ok(buffer)
                     }
 
                     fn read_from_guest<U: Imports, T: serde::de::DeserializeOwned>(
-                        mut caller: &mut wasmtime::Caller<U>,
+                        caller: &mut wasmtime::Caller<U>,
                         fat_ptr: super::__shared::FatPtr,
                     ) -> wasmtime::Result<T> {
-                        let buffer = read_to_buffer(caller, fat_ptr)?;
+                        let buffer = read_to_buffer(caller, fat_ptr, true)?;
                         Ok(bincode::deserialize(&buffer)?)
                     }
 
-                    fn read_string_from_guest<U: Imports>(
-                        mut caller: &mut wasmtime::Caller<U>,
+                    fn read_string_ref_from_guest<U: Imports>(
+                        caller: &mut wasmtime::Caller<U>,
                         fat_ptr: super::__shared::FatPtr,
                     ) -> wasmtime::Result<String> {
-                        let buffer = read_to_buffer(caller, fat_ptr)?;
+                        let buffer = read_to_buffer(caller, fat_ptr, false)?;
                         Ok(String::from_utf8(buffer)?)
                     }
 
@@ -332,18 +353,29 @@ pub(crate) fn impl_imports(input: TokenStream) -> proc_macro2::TokenStream {
                         mut caller: &mut wasmtime::Caller<U>,
                         bytes: &[u8],
                     ) -> wasmtime::Result<super::__shared::FatPtr> {
-                        let (memory, alloc) = get_memory_and::<U, super::__shared::Size, super::__shared::Ptr>(caller, "__custom_alloc");
+                        let (memory, alloc) = {
+                            let data = caller.data();
+                            (data.get_memory(), data.get_alloc())
+                        };
+                        let (memory, alloc) = if alloc.is_some() {
+                            (memory.unwrap(), alloc.unwrap())
+                        } else {
+                            get_memory_and(caller, "__custom_alloc")
+                        };
 
                         let size = bytes.len().try_into()?;
                         let ptr = alloc.call(&mut caller, size)?;
-
                         memory.write(&mut caller, ptr as usize, bytes)?;
+
+                        let data = caller.data_mut();
+                        data.set_memory(memory);
+                        data.set_alloc(alloc);
 
                         Ok(super::__shared::to_fat_ptr(ptr, size))
                     }
 
                     fn send_to_guest<U: Imports, T: ?Sized + serde::Serialize>(
-                        mut caller: &mut wasmtime::Caller<U>,
+                        caller: &mut wasmtime::Caller<U>,
                         data: &T,
                     ) -> wasmtime::Result<super::__shared::FatPtr> {
                         let bytes = bincode::serialize(&data)?;
@@ -351,7 +383,7 @@ pub(crate) fn impl_imports(input: TokenStream) -> proc_macro2::TokenStream {
                     }
 
                     fn send_string_to_guest<U: Imports>(
-                        mut caller: &mut wasmtime::Caller<U>,
+                        caller: &mut wasmtime::Caller<U>,
                         string: String,
                     ) -> wasmtime::Result<super::__shared::FatPtr> {
                         clone_bytes_to_guest(caller, string.as_bytes())

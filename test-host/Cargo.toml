@@ -13,3 +13,4 @@ wasmtime-wasi = "12.0.1"
 bincode = { workspace = true }
 shared = { path = "../shared" }
 serde = { workspace = true }
+anyhow = "1.0.75"
