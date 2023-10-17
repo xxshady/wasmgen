@@ -1,4 +1,4 @@
-use proc_macro::TokenStream;
+use proc_macro2::TokenStream;
 use quote::quote;
 use syn::Ident;
 
@@ -11,7 +11,7 @@ use crate::{
     value_type::ValueKind,
 };
 
-pub(crate) fn gen_imports(input: TokenStream) -> proc_macro2::TokenStream {
+pub(crate) fn gen_imports(input: TokenStream) -> TokenStream {
     let (parser::Interface { imports, .. }, interface_file) = parse_interface_file(input);
 
     let mut funcs = vec![];
@@ -166,7 +166,7 @@ pub(crate) fn gen_imports(input: TokenStream) -> proc_macro2::TokenStream {
     )
 }
 
-pub(crate) fn impl_exports(input: TokenStream) -> proc_macro2::TokenStream {
+pub(crate) fn impl_exports(input: TokenStream) -> TokenStream {
     let (parser::Interface { exports, .. }, interface_file) = parse_interface_file(input);
 
     let mut trait_funcs = vec![];
@@ -275,7 +275,7 @@ pub(crate) fn impl_exports(input: TokenStream) -> proc_macro2::TokenStream {
     )
 }
 
-pub(crate) fn gen_helpers() -> proc_macro2::TokenStream {
+pub(crate) fn gen_helpers() -> TokenStream {
     quote! {
         mod __internal {
             #[cfg(target_family = "wasm")]

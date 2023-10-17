@@ -1,6 +1,7 @@
+use proc_macro2::TokenStream;
 use quote::quote;
 
-pub(crate) fn shared_mod() -> proc_macro2::TokenStream {
+pub(crate) fn shared_mod() -> TokenStream {
     quote! {
         mod __shared {
             pub type FatPtr = u64;

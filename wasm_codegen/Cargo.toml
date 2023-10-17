@@ -7,6 +7,4 @@ edition = { workspace = true }
 proc-macro = true
 
 [dependencies]
-quote = "1.0.33"
-syn = "2.0.38"
-proc-macro2 = "1.0.69"
+wasm_codegen_impl.path = "../wasm_codegen_impl"

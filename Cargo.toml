@@ -2,10 +2,11 @@
 resolver = "2"
 
 members = [
-    "wasm_codegen",
     "shared",
-    "test-host",
     "test-guest",
+    "test-host",
+    "wasm_codegen",
+    "wasm_codegen_impl",
 ]
 
 [workspace.package]

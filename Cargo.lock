@@ -1635,6 +1635,13 @@ dependencies = [
 name = "wasm_codegen"
 version = "0.0.0"
 dependencies = [
+ "wasm_codegen_impl",
+]
+
+[[package]]
+name = "wasm_codegen_impl"
+version = "0.0.0"
+dependencies = [
  "proc-macro2",
  "quote",
  "syn",

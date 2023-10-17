@@ -142,27 +142,5 @@ fn main() -> wasmtime::Result<()> {
 
     exports.call_main().unwrap();
 
-    // exports.call_pre_main().unwrap();
-
-    // let string = "string for guest (●'◡'●)".to_string();
-    // for _ in 1..=10_000 {
-    //     exports.call_give_string_to_guest(&string).unwrap();
-    //     let string = exports.call_return_string_to_host().unwrap();
-    //     assert_eq!(string.len(), string.len());
-    // }
-
-    // exports.call_main().unwrap();
-
-    // let mut bench = || {
-    //     let now = Instant::now();
-    //     // main.call(&mut store, ()).unwrap();
-    //     exports.call_main().unwrap();
-    //     dbg!(now.elapsed());
-    // };
-
-    // for _ in 1..=15 {
-    //     bench();
-    // }
-
     Ok(())
 }

@@ -1,5 +1,5 @@
 use crate::{parser, value_type::ValueKind};
-use proc_macro::TokenStream;
+use proc_macro2::TokenStream;
 use quote::quote;
 use syn::Ident;
 
@@ -8,7 +8,7 @@ use crate::helpers::{
     value_type_to_rust_as_syn_type,
 };
 
-pub(crate) fn gen_exports(input: TokenStream) -> proc_macro2::TokenStream {
+pub(crate) fn gen_exports(input: TokenStream) -> TokenStream {
     let (parser::Interface { exports, .. }, interface_file) = parse_interface_file(input);
 
     let mut private_props = vec![];
@@ -217,7 +217,7 @@ pub(crate) fn gen_exports(input: TokenStream) -> proc_macro2::TokenStream {
     )
 }
 
-pub(crate) fn impl_imports(input: TokenStream) -> proc_macro2::TokenStream {
+pub(crate) fn impl_imports(input: TokenStream) -> TokenStream {
     let (parser::Interface { imports, .. }, interface_file) = parse_interface_file(input);
 
     let mut trait_methods = vec![];
