@@ -2,6 +2,9 @@ use std::fs;
 
 use crate::value_type::{ParamType, ReturnType, ValueType};
 
+const BIG_CALL_MIN_PARAMS: usize = 3; // TODO: set it to 16
+const BIG_CALL_MAX_PARAMS: usize = 32;
+
 #[derive(Debug, PartialEq, Clone, Copy)]
 enum TopLevelSection {
     Imports,
@@ -19,6 +22,7 @@ pub struct Func {
     pub name: String,
     pub params: Vec<Param>,
     pub ret: Option<ValueType>,
+    pub big_call: bool,
 }
 
 #[derive(Debug)]
@@ -111,6 +115,7 @@ impl SectionController {
                                 name: func_name.to_string(),
                                 params: vec![],
                                 ret: None,
+                                big_call: false, // will be changed then in parameters parsing
                             });
                         }
 
@@ -145,6 +150,17 @@ impl SectionController {
                                 name: param_name,
                                 param_type: ParamType(param_type).into(),
                             });
+
+                            let current_count = func.params.len();
+                            if current_count > BIG_CALL_MIN_PARAMS {
+                                func.big_call = true;
+                            }
+                            if current_count > BIG_CALL_MAX_PARAMS {
+                                panic!(
+                                    "Too many args (> {BIG_CALL_MAX_PARAMS}) in func: {}",
+                                    func.name
+                                );
+                            }
 
                             if char == ')' {
                                 return_type_parsing = true;

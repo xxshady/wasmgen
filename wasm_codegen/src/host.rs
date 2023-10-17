@@ -16,7 +16,13 @@ pub(crate) fn gen_exports(input: TokenStream) -> proc_macro2::TokenStream {
     let mut exported_names = vec![];
     let mut pub_methods = vec![];
 
-    for parser::Func { name, params, ret } in exports {
+    for parser::Func {
+        name,
+        params,
+        ret,
+        big_call,
+    } in exports
+    {
         let name: Ident = syn::parse_str(&name).unwrap();
         let name_call: Ident = syn::parse_str(&format!("call_{name}")).unwrap();
         let name_prop: Ident = syn::parse_str(&format!("prop_{name}")).unwrap();
@@ -96,15 +102,19 @@ pub(crate) fn gen_exports(input: TokenStream) -> proc_macro2::TokenStream {
                     memory: wasmtime::Memory,
                     store: wasmtime::Store<S>,
 
-                    alloc: wasmtime::TypedFunc<super::__shared::Size, super::__shared::Ptr>,
-                    free: wasmtime::TypedFunc<super::__shared::FatPtr, ()>,
+                    alloc: super::AllocFunc,
+                    free: super::FreeFunc,
                     pre_main: wasmtime::TypedFunc<(), ()>,
                     main: wasmtime::TypedFunc<(), ()>,
                 }
 
                 impl<S> Exports<S> {
-                    pub fn new(mut store: wasmtime::Store<S>, instance: wasmtime::Instance) -> Self {
-                        Self {
+                    pub fn new(
+                        mutate_big_call_ptr: impl FnOnce(&mut S) -> &mut super::Ptr,
+                        mut store: wasmtime::Store<S>,
+                        instance: wasmtime::Instance
+                    ) -> Self {
+                        let mut exports = Self {
                             // user funcs
                             #(
                                 #private_prop_names: instance.get_typed_func(&mut store, stringify!(#exported_names)).unwrap(),
@@ -120,13 +130,39 @@ pub(crate) fn gen_exports(input: TokenStream) -> proc_macro2::TokenStream {
                             main: instance.get_typed_func(&mut store, "main").unwrap(),
 
                             store,
+                        };
+
+                        {
+                            let (ptr, size) = exports
+                                .alloc_bytes(&[1_u8; super::__shared::BYTES_TO_STORE_U64_32_TIMES])
+                                .unwrap();
+                            println!("allocated big_call size: {size}");
+                            *mutate_big_call_ptr(exports.store.data_mut()) = ptr;
+                            let init_big_call: wasmtime::TypedFunc<(super::__shared::Ptr,), ()> = instance
+                                .get_typed_func(&mut exports.store, "__init_big_call")
+                                .unwrap();
+                            init_big_call.call(&mut exports.store, (ptr,)).unwrap();
                         }
+
+                        exports
                     }
 
-                    fn clone_bytes_to_guest(&mut self, bytes: &[u8]) -> wasmtime::Result<super::__shared::FatPtr> {
+                    pub fn store_mut(&mut self) -> &mut wasmtime::Store<S> {
+                        &mut self.store
+                    }
+
+                    pub fn alloc_bytes(&mut self, bytes: &[u8]) -> wasmtime::Result<(
+                        super::__shared::Ptr,
+                        super::__shared::Size
+                    )> {
                         let size = bytes.len().try_into()?;
                         let ptr = self.alloc.call(&mut self.store, size)?;
                         self.memory.write(&mut self.store, ptr as usize, bytes)?;
+                        Ok((ptr, size))
+                    }
+
+                    fn clone_bytes_to_guest(&mut self, bytes: &[u8]) -> wasmtime::Result<super::__shared::FatPtr> {
+                        let (ptr, size) = self.alloc_bytes(bytes)?;
                         Ok(super::__shared::to_fat_ptr(ptr, size))
                     }
 
@@ -187,7 +223,13 @@ pub(crate) fn impl_imports(input: TokenStream) -> proc_macro2::TokenStream {
     let mut trait_methods = vec![];
     let mut linker_funcs = vec![];
 
-    for parser::Func { name, params, ret } in imports {
+    for parser::Func {
+        name,
+        params,
+        ret,
+        big_call,
+    } in imports
+    {
         let name: Ident = syn::parse_str(&name).unwrap();
 
         let mut param_trait_decls = vec![];
@@ -195,30 +237,47 @@ pub(crate) fn impl_imports(input: TokenStream) -> proc_macro2::TokenStream {
         let mut param_names = vec![];
         let mut param_deserializations = vec![];
 
-        for p in params {
+        for (idx, p) in params.into_iter().enumerate() {
             // TODO: make proper panic messages
             let name: Ident = syn::parse_str(&p.name).expect("t");
             let pub_type = value_type_to_rust_as_syn_type(p.param_type, true);
             let param_internal_type = value_type_to_repr_as_token_stream(p.param_type);
-            let deserialization = match p.param_type.kind() {
-                ValueKind::Native => quote! { #name as #pub_type },
-                ValueKind::FatPtr => {
-                    quote! { read_from_guest(&mut caller, #name).unwrap() }
-                }
-                ValueKind::Bool => {
-                    quote! { #name == 1 }
-                }
-                ValueKind::String => {
-                    quote! { read_string_ref_from_guest(&mut caller, #name).unwrap() }
+
+            let deserialization = {
+                let deserialization = if big_call {
+                    let arg_bottom = idx * 8;
+                    let arg_top = (idx + 1) * 8;
+                    let current_arg_range = quote! { #arg_bottom..#arg_top };
+                    quote! {
+                        <#param_internal_type as super::__shared::NumAsU64Arr>::from_bytes(big_call_args[#current_arg_range].try_into().unwrap())
+                    }
+                } else {
+                    quote! { #name }
+                };
+
+                match p.param_type.kind() {
+                    ValueKind::Native => quote! { #deserialization as #pub_type },
+                    ValueKind::FatPtr => {
+                        quote! { read_from_guest(&mut caller, #deserialization).unwrap() }
+                    }
+                    ValueKind::Bool => {
+                        quote! { #deserialization == 1 }
+                    }
+                    ValueKind::String => {
+                        quote! { read_string_ref_from_guest(&mut caller, #deserialization).unwrap() }
+                    }
                 }
             };
 
             param_trait_decls.push(quote! {
                 #name: #pub_type
             });
-            param_internal_decls.push(quote! {
-                #name: #param_internal_type
-            });
+
+            if !big_call {
+                param_internal_decls.push(quote! {
+                    #name: #param_internal_type
+                });
+            }
             param_deserializations.push(quote! {
                 #deserialization
             });
@@ -253,6 +312,23 @@ pub(crate) fn impl_imports(input: TokenStream) -> proc_macro2::TokenStream {
             fn #name(&self, #( #param_trait_decls, )* ) #pub_ret;
         });
 
+        let all_params_deserialization = if big_call {
+            quote! {
+                // TODO: add check if there are more than 0 params? or does compiler optimize it anyway?
+                let ( #( #param_names, )* ) = read_big_call_args(&mut caller).with_borrow(|big_call_args| {
+                    ( #(
+                        #param_deserializations,
+                    )* )
+                });
+            }
+        } else {
+            quote! {
+                #(
+                    let #param_names = #param_deserializations;
+                )*
+            }
+        };
+
         linker_funcs.push(quote! {
             linker
                 .func_wrap(
@@ -262,9 +338,8 @@ pub(crate) fn impl_imports(input: TokenStream) -> proc_macro2::TokenStream {
                     |mut caller: wasmtime::Caller<U>, #( #param_internal_decls, )*| #internal_ret {
                         #[allow(clippy::unnecessary_cast)]
                         {
-                            #(
-                                let #param_names = #param_deserializations;
-                            )*
+                            #all_params_deserialization
+
                             #[allow(unused_variables, clippy::let_unit_value)]
                             let call_return = caller.data().#name( #( #param_names, )* );
                             #ret_serialization
@@ -282,27 +357,54 @@ pub(crate) fn impl_imports(input: TokenStream) -> proc_macro2::TokenStream {
                     fn get_memory(&self) -> Option<wasmtime::Memory>;
                     fn set_memory(&mut self, memory: wasmtime::Memory);
 
-                    fn get_free(&self) -> Option<wasmtime::TypedFunc<super::FatPtr, ()>>;
-                    fn set_free(&mut self, free: wasmtime::TypedFunc<super::FatPtr, ()>);
+                    fn get_free(&self) -> Option<super::FreeFunc>;
+                    fn set_free(&mut self, free: super::FreeFunc);
 
-                    fn get_alloc(&self) -> Option<wasmtime::TypedFunc<super::Size, super::Ptr>>;
-                    fn set_alloc(&mut self, alloc: wasmtime::TypedFunc<super::Size, super::Ptr>);
+                    fn get_alloc(&self) -> Option<super::AllocFunc>;
+                    fn set_alloc(&mut self, alloc: super::AllocFunc);
+
+                    fn get_big_call_ptr(&self) -> super::Ptr;
 
                     #( #trait_methods )*
                 }
 
                 pub fn add_to_linker<U: Imports>(linker: &mut wasmtime::Linker<U>) {
-                    fn get_memory_and<U: Imports, Params: wasmtime::WasmParams, Results: wasmtime::WasmResults>(
-                        caller: &mut wasmtime::Caller<U>,
-                        and: &'static str,
-                    ) -> (wasmtime::Memory, wasmtime::TypedFunc<Params, Results>) {
+                    fn get_memory<U: Imports>(caller: &mut wasmtime::Caller<U>) -> wasmtime::Memory {
                         let Some(wasmtime::Extern::Memory(memory)) = caller.get_export("memory") else {
                             panic!("Failed to get memory export")
                         };
+                        memory
+                    }
+
+                    fn read_big_call_args<U: Imports>(
+                        caller: &mut wasmtime::Caller<U>,
+                    ) -> &'static std::thread::LocalKey<std::cell::RefCell<Vec<u8>>> {
+                        thread_local! {
+                            static ARGS: std::cell::RefCell<Vec<u8>> = std::cell::RefCell::new(vec![0u8; super::__shared::BYTES_TO_STORE_U64_32_TIMES]);
+                        }
+
+                        let big_call_ptr = caller.data().get_big_call_ptr();
+
+                        ARGS.with_borrow_mut(|args| {
+                            get_memory(caller)
+                                .read(caller, big_call_ptr as usize, args)
+                                .unwrap();
+                        });
+                        &ARGS
+                    }
+
+                    fn get_memory_and<
+                        U: Imports,
+                        Params: wasmtime::WasmParams,
+                        Results: wasmtime::WasmResults,
+                    >(
+                        caller: &mut wasmtime::Caller<U>,
+                        and: &'static str,
+                    ) -> (wasmtime::Memory, wasmtime::TypedFunc<Params, Results>) {
+                        let memory = get_memory(caller);
                         let Some(wasmtime::Extern::Func(func)) = caller.get_export(and) else {
                             panic!("Failed to get {and:?} export")
                         };
-
                         (memory, func.typed::<Params, Results>(caller).unwrap())
                     }
 

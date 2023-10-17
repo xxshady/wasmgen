@@ -44,15 +44,50 @@ pub fn __pre_main() {
 }
 
 #[no_mangle]
-pub fn main() {
-    let string = "llwelre_wdwd_wWdWWddwdwdddddddddddddddddddddwd@44344@llwelre_wdwd_wWdWWddwdwdddddddddddddddddddddwd@44344@wdwdwdwdwwddwdwdwdwdwdwdwddddddddddwdwdwdwdwwddwdwdwdwdwdwdwddddddddddwdwdwdwdwwddwdwdwdwdwdwdwdddddddddd".to_string();
+fn main() {
+    // let string = "llwelre_wdwd_wWdWWddwdwdddddddddddddddddddddwd@44344@llwelre_wdwd_wWdWWddwdwdddddddddddddddddddddwd@44344@wdwdwdwdwwddwdwdwdwdwdwdwddddddddddwdwdwdwdwwddwdwdwdwdwdwdwddddddddddwdwdwdwdwwddwdwdwdwdwdwdwdddddddddd".to_string();
 
     // let string = "dada123_(❁´◡`❁)_ёклмн_end".to_string();
 
     // REGION.with(|v| {
     //     println!("stats: {:#?}", v.change());
     // });
-    for _ in 1..=25_000 {
-        guest::imports::give_string_to_host(&string);
-    }
+    // for _ in 1..=25_000 {
+    //     guest::imports::give_string_to_host(&string);
+    // }
+
+    guest::imports::big_call_test(
+        true,
+        !0,
+        &"".to_string(),
+        i32::MAX,
+        i64::MAX,
+        u64::MAX,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25,
+        26,
+        27,
+        28,
+        29,
+        30,
+        31,
+        32,
+    );
 }

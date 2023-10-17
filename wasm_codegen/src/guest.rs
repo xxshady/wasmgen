@@ -16,7 +16,13 @@ pub(crate) fn gen_imports(input: TokenStream) -> proc_macro2::TokenStream {
 
     let mut funcs = vec![];
 
-    for parser::Func { name, params, ret } in imports {
+    for parser::Func {
+        name,
+        params,
+        ret,
+        big_call,
+    } in imports
+    {
         let name: Ident = syn::parse_str(&name).unwrap();
         let internal_name: Ident = syn::parse_str(&format!("__custom_imports_{name}")).unwrap();
 
@@ -28,12 +34,21 @@ pub(crate) fn gen_imports(input: TokenStream) -> proc_macro2::TokenStream {
         for parser::Param { name, param_type } in params {
             let name: Ident = syn::parse_str(&name).unwrap();
             let internal_type = value_type_to_repr_as_token_stream(param_type);
-            let serialization = match param_type.kind() {
-                ValueKind::Native => quote! { #name as #internal_type },
-                ValueKind::FatPtr => quote! { super::__internal::send_to_host(&#name) },
-                ValueKind::Bool => quote! { #name as i32 },
-                // TODO: test what happens when String is used here in wasm.interface
-                ValueKind::String => quote! { super::__internal::send_str_to_host(#name) },
+            let serialization = {
+                let mut serialization = match param_type.kind() {
+                    ValueKind::Native => quote! { #name as #internal_type },
+                    ValueKind::FatPtr => quote! { super::__internal::send_to_host(&#name) },
+                    ValueKind::Bool => quote! { #name as i32 },
+                    ValueKind::String => quote! { super::__internal::send_str_to_host(#name) },
+                };
+
+                if big_call {
+                    serialization = quote! {
+                        big_call_args.extend_from_slice(&super::__shared::NumAsU64Arr::into_bytes(#serialization))
+                    };
+                }
+
+                serialization
             };
             let param_type = value_type_to_rust_as_syn_type(param_type, false);
 
@@ -41,7 +56,10 @@ pub(crate) fn gen_imports(input: TokenStream) -> proc_macro2::TokenStream {
             params_signature.push(quote! {
                 #name: #param_type
             });
-            internal_param_decls.push(quote! { #name: #internal_type });
+
+            if !big_call {
+                internal_param_decls.push(quote! { #name: #internal_type });
+            }
             params_serialization.push(serialization);
         }
 
@@ -68,6 +86,50 @@ pub(crate) fn gen_imports(input: TokenStream) -> proc_macro2::TokenStream {
             (quote! {}, quote! {}, quote! {})
         };
 
+        let (big_call_args_init, big_call_args_tail) = if big_call {
+            (
+                quote! {
+                    let mut big_call_args = unsafe {
+                        let mut args = Vec::from_raw_parts(
+                            BIG_CALL_PTR.get() as *mut u8,
+                            super::__shared::BYTES_TO_STORE_U64_32_TIMES, // length
+                            super::__shared::BYTES_TO_STORE_U64_32_TIMES, // capacity
+                        );
+                        // TODO: maybe just set length to 0 in from_raw_parts?
+                        args.set_len(0);
+                        args
+                    };
+                },
+                quote! {
+                    std::mem::forget(big_call_args);
+                },
+            )
+        } else {
+            (quote! {}, quote! {})
+        };
+
+        let (all_params_serialization, passed_param_names) = if big_call {
+            (
+                quote! {
+                    #(
+                        #params_serialization;
+                    )*
+                },
+                quote! {},
+            )
+        } else {
+            (
+                quote! {
+                    #(
+                        let #param_names = #params_serialization;
+                    )*
+                },
+                quote! {
+                    #( #param_names, )*
+                },
+            )
+        };
+
         funcs.push(quote! {
             pub fn #name( #( #params_signature, )* ) #ret_type {
                 #[link(wasm_import_module = "__custom_imports")]
@@ -78,12 +140,12 @@ pub(crate) fn gen_imports(input: TokenStream) -> proc_macro2::TokenStream {
 
                 #[allow(clippy::unnecessary_cast)]
                 {
-                    #(
-                        let #param_names = #params_serialization;
-                    )*
+                    #big_call_args_init
+                    #all_params_serialization
+                    #big_call_args_tail
 
                     #[allow(unused_variables, clippy::let_unit_value)]
-                    let call_return = unsafe { #internal_name( #( #param_names, )* ) };
+                    let call_return = unsafe { #internal_name(#passed_param_names) };
                     #ret_deserialization
                 }
             }
@@ -93,6 +155,10 @@ pub(crate) fn gen_imports(input: TokenStream) -> proc_macro2::TokenStream {
     build_code(
         quote! {
             pub mod imports {
+                thread_local! {
+                    pub(super) static BIG_CALL_PTR: std::cell::Cell<super::__shared::Ptr> = std::cell::Cell::new(0);
+                }
+
                 #( #funcs )*
             }
         },
@@ -106,7 +172,13 @@ pub(crate) fn impl_exports(input: TokenStream) -> proc_macro2::TokenStream {
     let mut trait_funcs = vec![];
     let mut extern_funcs = vec![];
 
-    for parser::Func { name, params, ret } in exports {
+    for parser::Func {
+        name,
+        params,
+        ret,
+        big_call,
+    } in exports
+    {
         let name: Ident = syn::parse_str(&name).unwrap();
         let exported_name: Ident = syn::parse_str(&format!("__custom_exports_{name}")).unwrap();
 
@@ -222,6 +294,11 @@ pub(crate) fn gen_helpers() -> proc_macro2::TokenStream {
                     panic!("Failed to allocate");
                 }
                 ptr as super::__shared::Ptr
+            }
+
+            #[no_mangle]
+            pub fn __init_big_call(ptr: super::__shared::Ptr) {
+                super::imports::BIG_CALL_PTR.set(ptr);
             }
 
             fn array_layout(len: u32) -> std::alloc::Layout {

@@ -115,7 +115,7 @@ pub enum ValueKind {
     /// Custom type
     FatPtr,
     /// Small value that fits in wasm type
-    /// (e.g. `bool` fits in `i32`)
+    /// (e.g. i32 or f32)
     Native,
     /// Did not found better way for bool values :deadge:
     /// other than representing it as i32 and checking == 1
