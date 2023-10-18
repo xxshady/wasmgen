@@ -13,4 +13,6 @@ bincode = { workspace = true }
 shared = { path = "../shared" }
 serde = { workspace = true }
 anyhow = "1.0.75"
-wasm_codegen = { path = "../wasm_codegen" }
+
+[build-dependencies]
+build_helper.path = '../build_helper'

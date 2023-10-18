@@ -10,9 +10,11 @@ license.workspace = true
 bincode = { workspace = true }
 serde = { workspace = true }
 shared = { path = "../shared" }
-wasm_codegen = { path = "../wasm_codegen" }
 stats_alloc = "0.1.10"
 custom-print = "1.0.0"
+
+[build-dependencies]
+build_helper.path = '../build_helper'
 
 [lib]
 crate-type = ["cdylib"]

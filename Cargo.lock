@@ -133,6 +133,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "build_helper"
+version = "0.0.0"
+dependencies = [
+ "prettyplease",
+ "proc-macro2",
+ "quote",
+ "syn",
+ "wasm_codegen_impl",
+]
+
+[[package]]
 name = "bumpalo"
 version = "3.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1033,6 +1044,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5b40af805b3121feab8a3c29f04d8ad262fa8e0561883e7653e024ae4479e6de"
 
 [[package]]
+name = "prettyplease"
+version = "0.2.15"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ae005bd773ab59b4725093fd7df83fd7892f7d8eafb48dbd7de6e024e4215f9d"
+dependencies = [
+ "proc-macro2",
+ "syn",
+]
+
+[[package]]
 name = "proc-macro2"
 version = "1.0.69"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1388,11 +1409,11 @@ name = "test-guest"
 version = "0.0.0"
 dependencies = [
  "bincode",
+ "build_helper",
  "custom-print",
  "serde",
  "shared",
  "stats_alloc",
- "wasm_codegen",
 ]
 
 [[package]]
@@ -1401,9 +1422,9 @@ version = "0.0.0"
 dependencies = [
  "anyhow",
  "bincode",
+ "build_helper",
  "serde",
  "shared",
- "wasm_codegen",
  "wasmtime",
  "wasmtime-wasi",
 ]

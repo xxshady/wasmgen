@@ -8,7 +8,7 @@ mod parser;
 mod shared;
 mod value_type;
 
-pub fn host_code(input: TokenStream) -> TokenStream {
+pub fn host(input: TokenStream) -> TokenStream {
     let exports = host::gen_exports(input.clone());
     let imports = host::impl_imports(input);
     let shared = shared::shared_mod();
@@ -26,7 +26,7 @@ pub fn host_code(input: TokenStream) -> TokenStream {
     }
 }
 
-pub fn guest_code(input: TokenStream) -> TokenStream {
+pub fn guest(input: TokenStream) -> TokenStream {
     let helpers = guest::gen_helpers();
     let imports = guest::gen_imports(input.clone());
     let exports = guest::impl_exports(input);

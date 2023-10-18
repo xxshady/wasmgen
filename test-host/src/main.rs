@@ -1,10 +1,8 @@
-use std::time::Instant;
-
 use wasmtime::*;
 
 use wasmtime_wasi::{WasiCtx, WasiCtxBuilder};
 
-wasm_codegen::host!("../wasm.interface");
+mod host;
 
 struct State {
     wasi: WasiCtx,

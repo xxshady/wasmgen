@@ -224,7 +224,8 @@ pub struct Interface {
 }
 
 pub fn parse_interface(path: &str) -> Interface {
-    let input = fs::read_to_string(path).unwrap();
+    let input = fs::read_to_string(path)
+        .unwrap_or_else(|e| panic!("Failed to read interface file at: {path:?}, error: {e}"));
     let controller = SectionController::default();
     controller.parse(input)
 }

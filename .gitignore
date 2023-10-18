@@ -1,1 +1,3 @@
 /target
+test-host/src/host.rs
+test-guest/src/guest.rs

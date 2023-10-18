@@ -8,7 +8,7 @@ use std::alloc::System;
 //     static REGION: Region<'static, System> = Region::new(&GLOBAL);
 // }
 
-wasm_codegen::guest!("../wasm.interface");
+mod guest;
 
 impl guest::exports::Exports for guest::exports::ExportsImpl {
     fn give_string_to_guest(string: String) {
