@@ -4,14 +4,18 @@ use std::fs;
 pub use quote::quote;
 pub use wasm_codegen_impl;
 
+const AUTO_GENERATED: &str = "
+    // AUTO-GENERATED
+    // All manual changes will be overwritten
+
+";
+
 #[doc(hidden)]
 pub fn __generate_bindings(get_code: impl FnOnce() -> TokenStream, side: &str) {
     let code = get_code();
     let side: syn::Ident = syn::parse_str(side).unwrap();
-    let code = quote! {
-        // AUTO-GENERATED
-        // All manual changes will be overwritten
 
+    let code = quote! {
         #code
         pub use #side::*;
     };
@@ -20,7 +24,7 @@ pub fn __generate_bindings(get_code: impl FnOnce() -> TokenStream, side: &str) {
         prettyplease::unparse(&syn::parse_file(&code.to_string()).unwrap());
 
     let path = format!("src/{side}.rs");
-    fs::write(path, formatted_host_bindings).unwrap();
+    fs::write(path, format!("{AUTO_GENERATED}{formatted_host_bindings}")).unwrap();
 }
 
 #[macro_export]
