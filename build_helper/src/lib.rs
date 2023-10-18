@@ -9,6 +9,9 @@ pub fn __generate_bindings(get_code: impl FnOnce() -> TokenStream, side: &str) {
     let code = get_code();
     let side: syn::Ident = syn::parse_str(side).unwrap();
     let code = quote! {
+        // AUTO-GENERATED
+        // All manual changes will be overwritten
+
         #code
         pub use #side::*;
     };
