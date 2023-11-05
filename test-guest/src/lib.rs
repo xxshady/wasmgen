@@ -1,5 +1,9 @@
-use stats_alloc::{Region, StatsAlloc, INSTRUMENTED_SYSTEM};
-use std::alloc::System;
+use futures::{
+    executor::{LocalPool, LocalSpawner},
+    task::LocalSpawnExt,
+};
+use r#async::TimerFuture;
+use std::{cell::RefCell, time::Duration};
 
 // #[global_allocator]
 // static GLOBAL: &StatsAlloc<System> = &INSTRUMENTED_SYSTEM;
@@ -10,14 +14,25 @@ use std::alloc::System;
 
 mod guest;
 
-impl guest::exports::Exports for guest::exports::ExportsImpl {
-    fn give_string_to_guest(string: String) {
-        assert_eq!(string.len(), string.len());
-        // guest::imports::log(&format!("string from host: {string:?}"));
-    }
+mod r#async;
+use crate::r#async::new_executor;
 
-    fn return_string_to_host() -> String {
-        "string for host ಥ_ಥ".to_string()
+mod timers;
+
+thread_local! {
+    static EXECUTOR: (RefCell<LocalPool>, LocalSpawner) = {
+        let (pool, spawner) = new_executor();
+        (RefCell::new(pool), spawner)
+    };
+}
+
+impl guest::exports::Exports for guest::exports::ExportsImpl {
+    fn run_tick() {
+        timers::run_tick();
+        EXECUTOR.with(|(pool, _)| {
+            println!("run_until_stalled");
+            pool.borrow_mut().run_until_stalled();
+        })
     }
 }
 
@@ -56,38 +71,58 @@ fn main() {
     //     guest::imports::give_string_to_host(&string);
     // }
 
-    guest::imports::big_call_test(
-        true,
-        !0,
-        &"".to_string(),
-        i32::MAX,
-        i64::MAX,
-        u64::MAX,
-        7,
-        8,
-        9,
-        10,
-        11,
-        12,
-        13,
-        14,
-        15,
-        16,
-        17,
-        18,
-        19,
-        20,
-        21,
-        22,
-        23,
-        24,
-        25,
-        26,
-        27,
-        28,
-        29,
-        30,
-        31,
-        32,
-    );
+    // guest::imports::big_call_test(
+    //     true,
+    //     !0,
+    //     &"".to_string(),
+    //     i32::MAX,
+    //     i64::MAX,
+    //     u64::MAX,
+    //     7,
+    //     8,
+    //     9,
+    //     10,
+    //     11,
+    //     12,
+    //     13,
+    //     14,
+    //     15,
+    //     16,
+    //     17,
+    //     18,
+    //     19,
+    //     20,
+    //     21,
+    //     22,
+    //     23,
+    //     24,
+    //     25,
+    //     26,
+    //     27,
+    //     28,
+    //     29,
+    //     30,
+    //     31,
+    //     32,
+    // );
+
+    EXECUTOR.with(|(_, spawner)| {
+        println!("spawning");
+
+        spawner
+            .spawn_local(async {
+                println!("before");
+                TimerFuture::new(Duration::from_millis(36)).await;
+                println!("after");
+            })
+            .unwrap();
+    })
+
+    // println!("before");
+    // set_timeout(
+    //     Box::new(|| {
+    //         println!("after");
+    //     }),
+    //     Duration::from_millis(36),
+    // );
 }

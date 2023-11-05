@@ -12,6 +12,7 @@ serde = { workspace = true }
 shared = { path = "../shared" }
 stats_alloc = "0.1.10"
 custom-print = "1.0.0"
+futures = "0.3.29"
 
 [build-dependencies]
 build_helper.path = '../build_helper'
