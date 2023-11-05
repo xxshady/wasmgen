@@ -13,6 +13,8 @@ pub(crate) fn run_tick() {
     TIMERS.with_borrow_mut(|timers| {
         let mut to_remove = vec![];
 
+        // println!("run timers: {}", timers.len());
+
         timers
             .iter_mut()
             .enumerate()
@@ -21,6 +23,8 @@ pub(crate) fn run_tick() {
                 if timer.dest >= Instant::now() {
                     return;
                 }
+
+                println!("calling timer");
 
                 (timer.callback.take().unwrap())();
                 to_remove.push(idx);
@@ -33,6 +37,7 @@ pub(crate) fn run_tick() {
 }
 
 pub(crate) fn set_timeout(callback: Box<dyn FnOnce()>, dest: Instant) {
+    println!("set_timeout");
     TIMERS.with_borrow_mut(|timers| {
         timers.push(Timer {
             callback: Some(callback),

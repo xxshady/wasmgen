@@ -120,10 +120,11 @@ fn main() {
                 // println!("after 3");
 
                 join!(
-                    TimerFuture::new(Duration::from_millis(10)),
-                    TimerFuture::new(Duration::from_millis(10)),
-                    TimerFuture::new(Duration::from_millis(10))
+                    TimerFuture::new(Duration::from_millis(50)),
+                    TimerFuture::new(Duration::from_millis(200)),
+                    TimerFuture::new(Duration::from_millis(450))
                 );
+                println!("after");
             })
             .unwrap();
     })

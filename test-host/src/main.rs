@@ -142,10 +142,10 @@ fn main() -> wasmtime::Result<()> {
 
     exports.call_main().unwrap();
 
-    for i in 0..5 {
+    for i in 0..35 {
         println!("[{i}]");
         exports.call_run_tick().unwrap();
-        thread::sleep(Duration::from_millis(3));
+        thread::sleep(Duration::from_millis(10));
     }
 
     Ok(())
