@@ -13,14 +13,18 @@ pub(crate) fn run_tick() {
     TIMERS.with_borrow_mut(|timers| {
         let mut to_remove = vec![];
 
-        timers.iter_mut().enumerate().for_each(|(idx, timer)| {
-            if timer.dest >= Instant::now() {
-                return;
-            }
+        timers
+            .iter_mut()
+            .enumerate()
+            .rev()
+            .for_each(|(idx, timer)| {
+                if timer.dest >= Instant::now() {
+                    return;
+                }
 
-            (timer.callback.take().unwrap())();
-            to_remove.push(idx);
-        });
+                (timer.callback.take().unwrap())();
+                to_remove.push(idx);
+            });
 
         to_remove.into_iter().for_each(|idx| {
             timers.swap_remove(idx);
