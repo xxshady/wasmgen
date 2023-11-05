@@ -1,5 +1,6 @@
 use futures::{
     executor::{LocalPool, LocalSpawner},
+    join,
     task::LocalSpawnExt,
 };
 use r#async::TimerFuture;
@@ -30,7 +31,6 @@ impl guest::exports::Exports for guest::exports::ExportsImpl {
     fn run_tick() {
         timers::run_tick();
         EXECUTOR.with(|(pool, _)| {
-            println!("run_until_stalled");
             pool.borrow_mut().run_until_stalled();
         })
     }
@@ -112,8 +112,18 @@ fn main() {
         spawner
             .spawn_local(async {
                 println!("before");
-                TimerFuture::new(Duration::from_millis(36)).await;
-                println!("after");
+                // TimerFuture::new(Duration::from_millis(10)).await;
+                // println!("after 1");
+                // TimerFuture::new(Duration::from_millis(10)).await;
+                // println!("after 2");
+                // TimerFuture::new(Duration::from_millis(10)).await;
+                // println!("after 3");
+
+                join!(
+                    TimerFuture::new(Duration::from_millis(10)),
+                    TimerFuture::new(Duration::from_millis(10)),
+                    TimerFuture::new(Duration::from_millis(10))
+                );
             })
             .unwrap();
     })

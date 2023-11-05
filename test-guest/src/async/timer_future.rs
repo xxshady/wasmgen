@@ -14,8 +14,6 @@ pub(crate) struct TimerFuture {
 
 impl TimerFuture {
     pub fn new(duration: Duration) -> Self {
-        dbg!(duration);
-
         TimerFuture {
             dest: Instant::now() + duration,
             ready_in_next: false,
