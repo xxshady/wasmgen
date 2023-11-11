@@ -2,7 +2,7 @@ use std::fs;
 
 use crate::value_type::{ParamType, ReturnType, ValueType};
 
-const BIG_CALL_MIN_PARAMS: usize = 3; // TODO: set it to 16
+const BIG_CALL_MIN_PARAMS: usize = 16;
 const BIG_CALL_MAX_PARAMS: usize = 32;
 
 #[derive(Debug, PartialEq, Clone, Copy)]
@@ -152,7 +152,7 @@ impl SectionController {
                             });
 
                             let current_count = func.params.len();
-                            if current_count > BIG_CALL_MIN_PARAMS {
+                            if current_count >= BIG_CALL_MIN_PARAMS {
                                 func.big_call = true;
                             }
                             if current_count > BIG_CALL_MAX_PARAMS {
