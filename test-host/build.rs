@@ -1,3 +1,3 @@
 fn main() {
-    build_helper::generate_bindings!(host, "../wasm.interface");
+    build_helper::generate_bindings!(host, "../wasm.interface", "host_gen.rs");
 }

@@ -2,17 +2,17 @@ use wasmtime::*;
 
 use wasmtime_wasi::{WasiCtx, WasiCtxBuilder};
 
-mod host;
+mod host_gen;
 
 struct State {
     wasi: WasiCtx,
     memory: Option<wasmtime::Memory>,
-    free: Option<wasmtime::TypedFunc<host::FatPtr, ()>>,
-    alloc: Option<wasmtime::TypedFunc<host::Size, host::Ptr>>,
-    big_call_ptr: host::Ptr,
+    free: Option<wasmtime::TypedFunc<host_gen::FatPtr, ()>>,
+    alloc: Option<wasmtime::TypedFunc<host_gen::Size, host_gen::Ptr>>,
+    big_call_ptr: host_gen::Ptr,
 }
 
-impl host::imports::Imports for State {
+impl host_gen::imports::Imports for State {
     fn get_big_call_ptr(&self) -> u32 {
         self.big_call_ptr
     }
@@ -21,11 +21,11 @@ impl host::imports::Imports for State {
         self.memory
     }
 
-    fn get_free(&self) -> Option<wasmtime::TypedFunc<host::FatPtr, ()>> {
+    fn get_free(&self) -> Option<wasmtime::TypedFunc<host_gen::FatPtr, ()>> {
         self.free
     }
 
-    fn get_alloc(&self) -> Option<wasmtime::TypedFunc<host::Size, host::Ptr>> {
+    fn get_alloc(&self) -> Option<wasmtime::TypedFunc<host_gen::Size, host_gen::Ptr>> {
         self.alloc
     }
 
@@ -33,11 +33,11 @@ impl host::imports::Imports for State {
         self.memory.replace(memory);
     }
 
-    fn set_free(&mut self, value: wasmtime::TypedFunc<host::FatPtr, ()>) {
+    fn set_free(&mut self, value: wasmtime::TypedFunc<host_gen::FatPtr, ()>) {
         self.free.replace(value);
     }
 
-    fn set_alloc(&mut self, alloc: wasmtime::TypedFunc<host::Size, host::Ptr>) {
+    fn set_alloc(&mut self, alloc: wasmtime::TypedFunc<host_gen::Size, host_gen::Ptr>) {
         self.alloc.replace(alloc);
     }
 
@@ -140,11 +140,11 @@ fn main() -> wasmtime::Result<()> {
     );
 
     wasmtime_wasi::add_to_linker(&mut linker, |s| &mut s.wasi).unwrap();
-    host::imports::add_to_linker(&mut linker);
+    host_gen::imports::add_to_linker(&mut linker);
 
     let instance = linker.instantiate(&mut store, &module).unwrap();
 
-    let mut exports = host::exports::Exports::new(|s| &mut s.big_call_ptr, store, instance);
+    let mut exports = host_gen::exports::Exports::new(|s| &mut s.big_call_ptr, store, instance);
 
     exports.call_main().unwrap();
 

@@ -11,7 +11,7 @@ const AUTO_GENERATED: &str = "
 ";
 
 #[doc(hidden)]
-pub fn __generate_bindings(get_code: impl FnOnce() -> TokenStream, side: &str) {
+pub fn __generate_bindings(get_code: impl FnOnce() -> TokenStream, side: &str, out_file: &str) {
     let code = get_code();
     let side: syn::Ident = syn::parse_str(side).unwrap();
 
@@ -25,16 +25,17 @@ pub fn __generate_bindings(get_code: impl FnOnce() -> TokenStream, side: &str) {
             panic!("prettyplease failed with error: {e}, code: {code}");
         }));
 
-    let path = format!("src/{side}.rs");
+    let path = format!("src/{out_file}");
     fs::write(path, format!("{AUTO_GENERATED}{formatted_host_bindings}")).unwrap();
 }
 
 #[macro_export]
 macro_rules! generate_bindings {
-    ($side:ident, $interface_file:literal) => {
+    ($side:ident, $interface_file:literal, $out_file:literal) => {
         $crate::__generate_bindings(
             || $crate::wasm_codegen_impl::$side($crate::quote! { $interface_file }),
             stringify!($side),
+            $out_file,
         );
     };
 }
