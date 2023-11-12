@@ -1,5 +1,8 @@
 imports {
-    big_call_test(a: Bool, a2: U8, a3: Str, a4: I32, a5: I64, a6: U64, a7: I32, a8: I32, a9: I32, a10: I32, a11: I32, a12: I32, a13: I32, a14: I32, a15: I32, a16: I32, a17: I32, a18: I32, a19: I32, a20: I32, a21: I32, a22: I32, a23: I32, a24: I32, a25: I32, a26: I32, a27: I32, a28: I32, a29: I32, a30: I32, a31: I32, a32: I32)
+    multi_test[
+        a(a: I32)
+        b(b: Bool)
+    ]
 }
 
 exports {

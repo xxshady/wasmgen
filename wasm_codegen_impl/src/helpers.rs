@@ -25,7 +25,10 @@ pub(crate) fn parse_interface_file(input: TokenStream) -> (parser::Interface, St
     let manifest_dir = PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap());
     let interface_file = manifest_dir.join(params.interface_file);
     let interface_file = interface_file.to_string_lossy().to_string();
-    (parser::parse_interface(&interface_file), interface_file)
+    (
+        parser::read_and_parse_interface(&interface_file),
+        interface_file,
+    )
 }
 
 pub(crate) fn build_code(code: TokenStream, interface_file: String) -> TokenStream {

@@ -21,7 +21,9 @@ pub fn __generate_bindings(get_code: impl FnOnce() -> TokenStream, side: &str) {
     };
 
     let formatted_host_bindings =
-        prettyplease::unparse(&syn::parse_file(&code.to_string()).unwrap());
+        prettyplease::unparse(&syn::parse_file(&code.to_string()).unwrap_or_else(|e| {
+            panic!("prettyplease failed with error: {e}, code: {code}");
+        }));
 
     let path = format!("src/{side}.rs");
     fs::write(path, format!("{AUTO_GENERATED}{formatted_host_bindings}")).unwrap();

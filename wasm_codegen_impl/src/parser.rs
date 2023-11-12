@@ -11,13 +11,13 @@ enum TopLevelSection {
     Exports,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct Param {
     pub name: String,
     pub param_type: ValueType,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct Func {
     pub name: String,
     pub params: Vec<Param>,
@@ -25,42 +25,91 @@ pub struct Func {
     pub big_call: bool,
 }
 
+#[derive(Debug, PartialEq)]
+pub struct MultiFunc {
+    pub name: String,
+    pub funcs: Vec<Func>,
+}
+
+#[derive(Debug, PartialEq)]
+pub enum AnyFunc {
+    Normal(Func),
+    MultiFunc(MultiFunc),
+}
+
+impl AnyFunc {
+    fn name(&self) -> &str {
+        match self {
+            AnyFunc::Normal(n) => &n.name,
+            AnyFunc::MultiFunc(m) => &m.name,
+        }
+    }
+}
+
 #[derive(Debug)]
 struct Section {
     kind: TopLevelSection,
-    funcs: Vec<Func>,
+    funcs: Vec<AnyFunc>,
 }
 
 #[derive(Debug, Default)]
 struct AllSections {
-    imports: Option<Vec<Func>>,
-    exports: Option<Vec<Func>>,
+    imports: Option<Vec<AnyFunc>>,
+    exports: Option<Vec<AnyFunc>>,
 }
 
 #[derive(Debug, Default)]
-struct SectionController {
-    current: Option<Section>,
+struct Parser {
+    current_section: Option<Section>,
     all: AllSections,
+    current_multi_func: Option<MultiFunc>,
 }
 
-impl SectionController {
-    fn change(&mut self, to: TopLevelSection) {
-        let section = self.current.take();
+impl Parser {
+    fn change_section(&mut self, to: TopLevelSection) {
+        let section = self.current_section.take();
         if let Some(section) = section {
             assert_ne!(section.kind, to);
-            self.collect_funcs(section);
+            self.collect_section(section);
         }
-        self.current.replace(Section {
+        self.current_section.replace(Section {
             kind: to,
             funcs: vec![],
         });
     }
 
-    fn add_func(&mut self, func: Func) {
-        self.current.as_mut().unwrap().funcs.push(func);
+    fn start_multi_func(&mut self, name: String) {
+        assert!(self.current_multi_func.is_none());
+        self.current_multi_func.replace(MultiFunc {
+            name,
+            funcs: vec![],
+        });
     }
 
-    fn collect_funcs(&mut self, section: Section) {
+    fn finish_multi_func(&mut self) {
+        let m = self.current_multi_func.take().unwrap();
+
+        self.current_section
+            .as_mut()
+            .unwrap()
+            .funcs
+            .push(AnyFunc::MultiFunc(m));
+    }
+
+    fn add_func(&mut self, func: Func) {
+        if let Some(m) = self.current_multi_func.as_mut() {
+            m.funcs.push(func);
+            return;
+        }
+
+        self.current_section
+            .as_mut()
+            .unwrap()
+            .funcs
+            .push(AnyFunc::Normal(func));
+    }
+
+    fn collect_section(&mut self, section: Section) {
         match section.kind {
             TopLevelSection::Exports => {
                 self.all.exports.replace(section.funcs);
@@ -80,16 +129,22 @@ impl SectionController {
 
         for char in input.chars() {
             match char {
-                ':' | '(' | ')' | ',' | '{' | '}' => {
+                ':'
+                // params
+                |'(' | ')' | ','
+                // top level sections
+                | '{' | '}'
+                // multi funcs
+                | '[' | ']' => {
                     match (std::mem::take(&mut word).trim(), char) {
                         // top level sections
                         ("imports", '{') => {
                             println!("starting with imports");
-                            self.change(TopLevelSection::Imports);
+                            self.change_section(TopLevelSection::Imports);
                         }
                         ("exports", '{') => {
                             println!("starting with exports");
-                            self.change(TopLevelSection::Exports);
+                            self.change_section(TopLevelSection::Exports);
                         }
                         (unknown, '{') => {
                             panic!("Unknown top-level section: {unknown:?}");
@@ -101,12 +156,12 @@ impl SectionController {
                             assert!(current_func.is_none());
 
                             if self
-                                .current
+                                .current_section
                                 .as_ref()
                                 .unwrap()
                                 .funcs
                                 .iter()
-                                .any(|f| f.name == func_name)
+                                .any(|f| f.name() == func_name)
                             {
                                 panic!("Detected func name duplicate: {func_name:?}");
                             }
@@ -152,7 +207,7 @@ impl SectionController {
                             });
 
                             let current_count = func.params.len();
-                            if current_count >= BIG_CALL_MIN_PARAMS {
+                            if current_count >= BIG_CALL_MIN_PARAMS || self.current_multi_func.is_some() {
                                 func.big_call = true;
                             }
                             if current_count > BIG_CALL_MAX_PARAMS {
@@ -166,6 +221,23 @@ impl SectionController {
                                 return_type_parsing = true;
                             }
                         }
+
+                        // custom multi func that uses single wasmtime func under the hood
+                        // multi_example[
+                        //   first(a: I32)
+                        //   second(b: I32) -> I32
+                        // ]
+                        (multi_func, '[') => {
+                            println!("starting multi func: {multi_func}");
+                            self.start_multi_func(multi_func.to_string());
+                        }
+
+                        // TODO: test
+                        ("", ']') => {
+                            println!("multi func finish?");
+                            self.finish_multi_func();
+                        }
+
                         _ => {}
                     }
                 }
@@ -206,8 +278,8 @@ impl SectionController {
             }
         }
 
-        if let Some(section) = self.current.take() {
-            self.collect_funcs(section);
+        if let Some(section) = self.current_section.take() {
+            self.collect_section(section);
         }
 
         Interface {
@@ -217,15 +289,144 @@ impl SectionController {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct Interface {
-    pub imports: Vec<Func>,
-    pub exports: Vec<Func>,
+    pub imports: Vec<AnyFunc>,
+    pub exports: Vec<AnyFunc>,
 }
 
-pub fn parse_interface(path: &str) -> Interface {
+fn parse(input: String) -> Interface {
+    let parser = Parser::default();
+    parser.parse(input)
+}
+
+pub fn read_and_parse_interface(path: &str) -> Interface {
     let input = fs::read_to_string(path)
         .unwrap_or_else(|e| panic!("Failed to read interface file at: {path:?}, error: {e}"));
-    let controller = SectionController::default();
-    controller.parse(input)
+    parse(input)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn parse_and_check(input: &str, interface: Interface) {
+        let parsed = parse(input.to_string());
+        assert_eq!(parsed, interface);
+    }
+
+    #[test]
+    fn empty() {
+        parse_and_check(
+            "
+            imports {
+                
+            }
+
+            exports {
+
+            }
+        ",
+            Interface {
+                imports: vec![],
+                exports: vec![],
+            },
+        );
+    }
+
+    #[test]
+    fn normal_funcs() {
+        parse_and_check(
+            "
+            imports {
+                test_import(a: I32)
+            }
+
+            exports {
+                test_export(b: F32)
+            }
+        ",
+            Interface {
+                imports: vec![AnyFunc::Normal(Func {
+                    name: "test_import".to_string(),
+                    params: vec![Param {
+                        name: "a".to_string(),
+                        param_type: ValueType::I32,
+                    }],
+                    ret: None,
+                    big_call: false,
+                })],
+
+                exports: vec![AnyFunc::Normal(Func {
+                    name: "test_export".to_string(),
+                    params: vec![Param {
+                        name: "b".to_string(),
+                        param_type: ValueType::F32,
+                    }],
+                    ret: None,
+                    big_call: false,
+                })],
+            },
+        );
+    }
+
+    #[test]
+    fn multi_func() {
+        parse_and_check(
+            "
+            imports {
+                test_multi_import[
+                    first()
+                    second()
+                    third()
+                ]
+                test_import()
+            }
+
+            exports {
+                test_export()
+            }
+        ",
+            Interface {
+                imports: vec![
+                    AnyFunc::MultiFunc(MultiFunc {
+                        name: "test_multi_import".to_string(),
+                        funcs: vec![
+                            Func {
+                                name: "first".to_string(),
+                                params: vec![],
+                                ret: None,
+                                big_call: false,
+                            },
+                            Func {
+                                name: "second".to_string(),
+                                params: vec![],
+                                ret: None,
+                                big_call: false,
+                            },
+                            Func {
+                                name: "third".to_string(),
+                                params: vec![],
+                                ret: None,
+                                big_call: false,
+                            },
+                        ],
+                    }),
+                    AnyFunc::Normal(Func {
+                        name: "test_import".to_string(),
+                        params: vec![],
+                        ret: None,
+                        big_call: false,
+                    }),
+                ],
+
+                exports: vec![AnyFunc::Normal(Func {
+                    name: "test_export".to_string(),
+                    params: vec![],
+                    ret: None,
+                    big_call: false,
+                })],
+            },
+        );
+    }
 }
