@@ -224,8 +224,8 @@ impl Parser {
 
                         // custom multi func that uses single wasmtime func under the hood
                         // multi_example[
-                        //   123(a: I32)
-                        //   3245(b: I32) -> I32
+                        //   first(a: I32)
+                        //   second(b: I32) -> I32
                         // ]
                         (multi_func, '[') => {
                             println!("starting multi func: {multi_func}");
@@ -376,8 +376,9 @@ mod tests {
             "
             imports {
                 test_multi_import[
-                    1()
-                    2()
+                    first()
+                    second()
+                    third()
                 ]
                 test_import()
             }
@@ -392,13 +393,19 @@ mod tests {
                         name: "test_multi_import".to_string(),
                         funcs: vec![
                             Func {
-                                name: "1".to_string(),
+                                name: "first".to_string(),
                                 params: vec![],
                                 ret: None,
                                 big_call: false,
                             },
                             Func {
-                                name: "2".to_string(),
+                                name: "second".to_string(),
+                                params: vec![],
+                                ret: None,
+                                big_call: false,
+                            },
+                            Func {
+                                name: "third".to_string(),
                                 params: vec![],
                                 ret: None,
                                 big_call: false,
