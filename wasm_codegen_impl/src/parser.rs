@@ -152,7 +152,6 @@ impl Parser {
 
                         // func names
                         (func_name, '(') => {
-                            dbg!(func_name);
                             assert!(current_func.is_none());
 
                             if self
@@ -261,7 +260,6 @@ impl Parser {
                                 if !return_type.is_empty() {
                                     let return_type = &return_type.split("->").last().unwrap();
                                     let return_type = return_type.trim();
-                                    dbg!(return_type);
                                     func.ret.replace(ReturnType(return_type).into());
                                 }
 
