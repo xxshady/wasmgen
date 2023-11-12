@@ -3,6 +3,7 @@ use quote::quote;
 use syn::Ident;
 
 use crate::{
+    guest_import_internal_func::InternalFuncImpl,
     helpers::{
         build_code, parse_interface_file, value_type_to_repr_as_token_stream,
         value_type_to_rust_as_syn_type,
@@ -16,15 +17,62 @@ pub(crate) fn gen_imports(input: TokenStream) -> TokenStream {
 
     let mut funcs = vec![];
 
-    for parser::Func {
-        name,
-        params,
-        ret,
-        big_call,
-    } in imports
-    {
+    for import in imports {
+        match import {
+            parser::AnyFunc::Normal(n) => handle_normal_func(
+                n,
+                |InternalFuncImpl {
+                     name,
+                     internal_name,
+                     param_decls,
+                     internal_param_decls,
+                     ret,
+                     internal_ret,
+                     ret_deserialization,
+                     big_call_args_init,
+                     params_serialization,
+                     big_call_args_tail,
+                     param_names,
+                 }: InternalFuncImpl| {
+                    quote! {
+                        pub fn #name( #( #param_decls, )* ) #ret {
+                            #[link(wasm_import_module = "__custom_imports")]
+                            extern "C" {
+                                #[link_name = stringify!(#name)]
+                                fn #internal_name( #( #internal_param_decls, )* ) #internal_ret;
+                            }
+
+                            #[allow(clippy::unnecessary_cast)]
+                            {
+                                #big_call_args_init
+                                #params_serialization
+                                #big_call_args_tail
+
+                                #[allow(unused_variables, clippy::let_unit_value)]
+                                let call_return = unsafe { #internal_name(#param_names) };
+                                #ret_deserialization
+                            }
+                        }
+                    }
+                },
+                &mut funcs,
+            ),
+            parser::AnyFunc::MultiFunc(m) => handle_multi_func(m, &mut funcs),
+        }
+    }
+
+    fn handle_normal_func(
+        parser::Func {
+            name,
+            params,
+            ret,
+            big_call,
+        }: parser::Func,
+        declare_pub_wrapper: impl FnOnce(InternalFuncImpl) -> TokenStream,
+        funcs: &mut Vec<TokenStream>,
+    ) {
+        let internal_name = generate_internal_name(&name);
         let name: Ident = syn::parse_str(&name).unwrap();
-        let internal_name: Ident = syn::parse_str(&format!("__custom_imports_{name}")).unwrap();
 
         let mut param_names = vec![];
         let mut params_signature = vec![];
@@ -130,26 +178,74 @@ pub(crate) fn gen_imports(input: TokenStream) -> TokenStream {
             )
         };
 
-        funcs.push(quote! {
-            pub fn #name( #( #params_signature, )* ) #ret_type {
-                #[link(wasm_import_module = "__custom_imports")]
-                extern "C" {
-                    #[link_name = stringify!(#name)]
-                    fn #internal_name( #( #internal_param_decls, )* ) #internal_ret;
-                }
+        funcs.push(declare_pub_wrapper(InternalFuncImpl {
+            name,
+            internal_name,
+            param_decls: params_signature,
+            param_names: passed_param_names,
+            internal_param_decls,
+            ret: ret_type,
+            internal_ret,
+            ret_deserialization,
+            big_call_args_init,
+            params_serialization: all_params_serialization,
+            big_call_args_tail,
+        }));
+    }
 
-                #[allow(clippy::unnecessary_cast)]
-                {
-                    #big_call_args_init
-                    #all_params_serialization
-                    #big_call_args_tail
-
-                    #[allow(unused_variables, clippy::let_unit_value)]
-                    let call_return = unsafe { #internal_name(#passed_param_names) };
-                    #ret_deserialization
-                }
+    fn handle_multi_func(
+        parser::MultiFunc { name, funcs }: parser::MultiFunc,
+        funcs_code: &mut Vec<TokenStream>,
+    ) {
+        let internal_name = generate_internal_name(&name);
+        funcs_code.push(quote! {
+            #[link(wasm_import_module = "__custom_imports")]
+            extern "C" {
+                #[link_name = #name]
+                fn #internal_name(func_index: u32) -> u64;
             }
         });
+
+        for (index, func) in funcs.into_iter().enumerate() {
+            let index = index as u32;
+            handle_normal_func(
+                func,
+                |InternalFuncImpl {
+                     name: func_name,
+                     internal_name: _,
+                     param_decls,
+                     internal_param_decls: _,
+                     ret,
+                     internal_ret: _,
+                     ret_deserialization,
+                     big_call_args_init,
+                     params_serialization,
+                     big_call_args_tail,
+                     param_names: _,
+                 }: InternalFuncImpl| {
+                    let full_name: Ident = syn::parse_str(&format!("{name}_{func_name}")).unwrap();
+                    quote! {
+                        pub fn #full_name( #( #param_decls, )* ) #ret {
+                            #[allow(clippy::unnecessary_cast)]
+                            {
+                                #big_call_args_init
+                                #params_serialization
+                                #big_call_args_tail
+
+                                #[allow(unused_variables, clippy::let_unit_value)]
+                                let call_return = unsafe { #internal_name(#index) };
+                                #ret_deserialization
+                            }
+                        }
+                    }
+                },
+                funcs_code,
+            )
+        }
+    }
+
+    fn generate_internal_name(name: &str) -> Ident {
+        syn::parse_str(&format!("__custom_imports_{name}")).unwrap()
     }
 
     build_code(
@@ -177,8 +273,10 @@ pub(crate) fn impl_exports(input: TokenStream) -> TokenStream {
         params,
         ret,
         big_call,
-    } in exports
-    {
+    } in exports.into_iter().map(|e| match e {
+        parser::AnyFunc::Normal(f) => f,
+        parser::AnyFunc::MultiFunc(_) => todo!(),
+    }) {
         let name: Ident = syn::parse_str(&name).unwrap();
         let exported_name: Ident = syn::parse_str(&format!("__custom_exports_{name}")).unwrap();
 

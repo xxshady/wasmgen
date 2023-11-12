@@ -2,8 +2,10 @@ use proc_macro2::TokenStream;
 use quote::quote;
 
 mod guest;
+mod guest_import_internal_func;
 mod helpers;
 mod host;
+mod host_import_internal_func;
 mod parser;
 mod shared;
 mod value_type;

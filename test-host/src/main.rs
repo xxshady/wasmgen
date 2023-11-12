@@ -56,49 +56,57 @@ impl host::imports::Imports for State {
     //     println!("[guest log] {msg}");
     // }
 
-    fn big_call_test(
-        &self,
-        a: bool,
-        a2: u8,
-        a3: String,
-        a4: i32,
-        a5: i64,
-        a6: u64,
-        a7: i32,
-        a8: i32,
-        a9: i32,
-        a10: i32,
-        a11: i32,
-        a12: i32,
-        a13: i32,
-        a14: i32,
-        a15: i32,
-        a16: i32,
-        a17: i32,
-        a18: i32,
-        a19: i32,
-        a20: i32,
-        a21: i32,
-        a22: i32,
-        a23: i32,
-        a24: i32,
-        a25: i32,
-        a26: i32,
-        a27: i32,
-        a28: i32,
-        a29: i32,
-        a30: i32,
-        a31: i32,
-        a32: i32,
-    ) {
-        dbg!(
-            a, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18, a19,
-            a20, a21, a22, a23, a24, a25, a26, a27, a28, a29, a30, a31, a32,
-        );
+    // fn big_call_test(
+    //     &self,
+    //     a: bool,
+    //     a2: u8,
+    //     a3: String,
+    //     a4: i32,
+    //     a5: i64,
+    //     a6: u64,
+    //     a7: i32,
+    //     a8: i32,
+    //     a9: i32,
+    //     a10: i32,
+    //     a11: i32,
+    //     a12: i32,
+    //     a13: i32,
+    //     a14: i32,
+    //     a15: i32,
+    //     a16: i32,
+    //     a17: i32,
+    //     a18: i32,
+    //     a19: i32,
+    //     a20: i32,
+    //     a21: i32,
+    //     a22: i32,
+    //     a23: i32,
+    //     a24: i32,
+    //     a25: i32,
+    //     a26: i32,
+    //     a27: i32,
+    //     a28: i32,
+    //     a29: i32,
+    //     a30: i32,
+    //     a31: i32,
+    //     a32: i32,
+    // ) {
+    //     dbg!(
+    //         a, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18, a19,
+    //         a20, a21, a22, a23, a24, a25, a26, a27, a28, a29, a30, a31, a32,
+    //     );
 
-        assert_eq!(i32::MAX, a4);
-        assert_eq!(i64::MAX, a5);
-        assert_eq!(u64::MAX, a6);
+    //     assert_eq!(i32::MAX, a4);
+    //     assert_eq!(i64::MAX, a5);
+    //     assert_eq!(u64::MAX, a6);
+    // }
+
+    fn multi_test_a(&self, a: i32) {
+        println!("multi_test_a a: {a}");
+    }
+
+    fn multi_test_b(&self, b: bool) {
+        println!("multi_test_b b: {b}");
     }
 }
 

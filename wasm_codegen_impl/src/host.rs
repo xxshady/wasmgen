@@ -1,4 +1,4 @@
-use crate::{parser, value_type::ValueKind};
+use crate::{host_import_internal_func::InternalFuncImpl, parser, value_type::ValueKind};
 use proc_macro2::TokenStream;
 use quote::quote;
 use syn::Ident;
@@ -21,8 +21,10 @@ pub(crate) fn gen_exports(input: TokenStream) -> TokenStream {
         params,
         ret,
         big_call,
-    } in exports
-    {
+    } in exports.into_iter().map(|e| match e {
+        parser::AnyFunc::Normal(f) => f,
+        parser::AnyFunc::MultiFunc(_) => todo!(),
+    }) {
         let name: Ident = syn::parse_str(&name).unwrap();
         let name_call: Ident = syn::parse_str(&format!("call_{name}")).unwrap();
         let name_prop: Ident = syn::parse_str(&format!("prop_{name}")).unwrap();
@@ -223,14 +225,59 @@ pub(crate) fn impl_imports(input: TokenStream) -> TokenStream {
     let mut trait_methods = vec![];
     let mut linker_funcs = vec![];
 
-    for parser::Func {
-        name,
-        params,
-        ret,
-        big_call,
-    } in imports
-    {
-        let name: Ident = syn::parse_str(&name).unwrap();
+    for import in imports {
+        match import {
+            parser::AnyFunc::Normal(n) => handle_normal_func(
+                n,
+                |InternalFuncImpl {
+                     name,
+                     param_decls,
+                     param_names,
+                     params_deserialization,
+                     ret,
+                     ret_serialization,
+                 }: InternalFuncImpl| {
+                    linker_funcs.push(quote! {
+                        linker
+                            .func_wrap(
+                                "__custom_imports",
+                                stringify!(#name),
+                                #[allow(unused_mut)]
+                                |mut caller: wasmtime::Caller<U>, #( #param_decls, )*| #ret {
+                                    #[allow(clippy::unnecessary_cast)]
+                                    {
+                                        #params_deserialization
+
+                                        #[allow(unused_variables, clippy::let_unit_value)]
+                                        let call_return = caller.data().#name( #( #param_names, )* );
+                                        #ret_serialization
+                                    }
+                                },
+                            )
+                            .unwrap();
+                    });
+                },
+                |name| name,
+                &mut trait_methods,
+            ),
+            parser::AnyFunc::MultiFunc(m) => {
+                handle_multi_func(m, &mut trait_methods, &mut linker_funcs)
+            }
+        }
+    }
+
+    fn handle_normal_func(
+        parser::Func {
+            name,
+            params,
+            ret,
+            big_call,
+        }: parser::Func,
+        handle_result: impl FnOnce(InternalFuncImpl),
+        trait_method_name: impl FnOnce(String) -> String,
+        trait_methods: &mut Vec<TokenStream>,
+    ) {
+        let name: Ident = syn::parse_str(&trait_method_name(name)).unwrap();
 
         let mut param_trait_decls = vec![];
         let mut param_internal_decls = vec![];
@@ -329,20 +376,86 @@ pub(crate) fn impl_imports(input: TokenStream) -> TokenStream {
             }
         };
 
+        handle_result(InternalFuncImpl {
+            name,
+            param_decls: param_internal_decls,
+            param_names,
+            params_deserialization: all_params_deserialization,
+            ret: internal_ret,
+            ret_serialization,
+        });
+    }
+
+    fn handle_multi_func(
+        parser::MultiFunc { name, funcs }: parser::MultiFunc,
+        trait_methods: &mut Vec<TokenStream>,
+        linker_funcs: &mut Vec<TokenStream>,
+    ) {
+        let mut func_impls = vec![];
+
+        for f in funcs {
+            handle_normal_func(
+                f,
+                |func_impl| {
+                    func_impls.push(func_impl);
+                },
+                |func_name| format!("{name}_{func_name}"),
+                trait_methods,
+            );
+        }
+
+        let func_match_arms = func_impls
+            .into_iter()
+            .enumerate()
+            .map(
+                |(
+                    index,
+                    InternalFuncImpl {
+                        name,
+                        param_names,
+                        params_deserialization,
+                        ret_serialization,
+                        ret: _,
+                        param_decls: _,
+                    },
+                )| {
+                    let index = index as u32;
+                    let ret_serialization = if ret_serialization.is_empty() {
+                        quote! { 0 }
+                    } else {
+                        ret_serialization
+                    };
+                    quote! {
+                        #index => {
+                            #params_deserialization
+
+                            #[allow(unused_variables, clippy::let_unit_value)]
+                            let call_return = caller.data().#name( #( #param_names, )* );
+                            #ret_serialization
+                        }
+                    }
+                },
+            )
+            .collect::<Vec<_>>();
+
+        let name: Ident = syn::parse_str(&name).unwrap();
         linker_funcs.push(quote! {
             linker
                 .func_wrap(
                     "__custom_imports",
                     stringify!(#name),
                     #[allow(unused_mut)]
-                    |mut caller: wasmtime::Caller<U>, #( #param_internal_decls, )*| #internal_ret {
+
+                    // returns any value (fat ptr, bool, etc.) fitting into u64
+                    |mut caller: wasmtime::Caller<U>, func_index: u32| -> u64 {
                         #[allow(clippy::unnecessary_cast)]
                         {
-                            #all_params_deserialization
-
-                            #[allow(unused_variables, clippy::let_unit_value)]
-                            let call_return = caller.data().#name( #( #param_names, )* );
-                            #ret_serialization
+                            match func_index {
+                                #( #func_match_arms )*
+                                _ => {
+                                    panic!("Unknown multi func index: {func_index} in func: {}", stringify!(#name));
+                                }
+                            }
                         }
                     },
                 )
