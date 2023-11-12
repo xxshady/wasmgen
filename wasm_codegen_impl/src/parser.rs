@@ -231,7 +231,6 @@ impl Parser {
                             self.start_multi_func(multi_func.to_string());
                         }
 
-                        // TODO: test
                         ("", ']') => {
                             // println!("multi func finish?");
                             self.finish_multi_func();
