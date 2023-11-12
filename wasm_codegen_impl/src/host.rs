@@ -138,7 +138,7 @@ pub(crate) fn gen_exports(input: TokenStream) -> TokenStream {
                             let (ptr, size) = exports
                                 .alloc_bytes(&[1_u8; super::__shared::BYTES_TO_STORE_U64_32_TIMES])
                                 .unwrap();
-                            println!("allocated big_call size: {size}");
+                            // println!("allocated big_call size: {size}");
                             *mutate_big_call_ptr(exports.store.data_mut()) = ptr;
                             let init_big_call: wasmtime::TypedFunc<(super::__shared::Ptr,), ()> = instance
                                 .get_typed_func(&mut exports.store, "__init_big_call")

@@ -139,11 +139,11 @@ impl Parser {
                     match (std::mem::take(&mut word).trim(), char) {
                         // top level sections
                         ("imports", '{') => {
-                            println!("starting with imports");
+                            // println!("starting with imports");
                             self.change_section(TopLevelSection::Imports);
                         }
                         ("exports", '{') => {
-                            println!("starting with exports");
+                            // println!("starting with exports");
                             self.change_section(TopLevelSection::Exports);
                         }
                         (unknown, '{') => {
@@ -176,7 +176,7 @@ impl Parser {
                         // params
                         ("", ')') => {
                             assert!(current_func.is_some());
-                            println!("empty params");
+                            // println!("empty params");
                             return_type_parsing = true;
                         }
 
@@ -227,13 +227,13 @@ impl Parser {
                         //   second(b: I32) -> I32
                         // ]
                         (multi_func, '[') => {
-                            println!("starting multi func: {multi_func}");
+                            // println!("starting multi func: {multi_func}");
                             self.start_multi_func(multi_func.to_string());
                         }
 
                         // TODO: test
                         ("", ']') => {
-                            println!("multi func finish?");
+                            // println!("multi func finish?");
                             self.finish_multi_func();
                         }
 
