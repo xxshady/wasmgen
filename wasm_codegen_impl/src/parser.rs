@@ -1,12 +1,13 @@
 use std::fs;
 
-use crate::value_type::{ParamType, ReturnType, ValueType};
+use crate::value_type::{ParamType, ReturnType, ValueType, ValueTypePool};
 
 const BIG_CALL_MIN_PARAMS: usize = 16;
 const BIG_CALL_MAX_PARAMS: usize = 32;
 
 #[derive(Debug, PartialEq, Clone, Copy)]
 enum TopLevelSection {
+    ValueTypes,
     Imports,
     Exports,
 }
@@ -50,10 +51,12 @@ impl AnyFunc {
 struct Section {
     kind: TopLevelSection,
     funcs: Vec<AnyFunc>,
+    raw_value_types: Vec<String>,
 }
 
 #[derive(Debug, Default)]
 struct AllSections {
+    value_types: ValueTypePool,
     imports: Option<Vec<AnyFunc>>,
     exports: Option<Vec<AnyFunc>>,
 }
@@ -75,6 +78,7 @@ impl Parser {
         self.current_section.replace(Section {
             kind: to,
             funcs: vec![],
+            raw_value_types: vec![],
         });
     }
 
@@ -111,6 +115,9 @@ impl Parser {
 
     fn collect_section(&mut self, section: Section) {
         match section.kind {
+            TopLevelSection::ValueTypes => {
+                self.all.value_types.set_types(section.raw_value_types);
+            }
             TopLevelSection::Exports => {
                 self.all.exports.replace(section.funcs);
             }
@@ -126,8 +133,37 @@ impl Parser {
         let mut current_param_name: Option<String> = None;
         let mut return_type_parsing = false;
         let mut return_type_parsing_arrow = false;
+        let mut types_parsing = false;
+        let mut types_parsing_line: Option<String> = None;
 
         for char in input.chars() {
+            if types_parsing {
+                match char {
+                    '}' => {
+                        println!("types parsing finished");
+                        types_parsing = false;
+                    }
+                    '\n' => {
+                        println!("types parsing new line");
+                        let line = types_parsing_line.take().unwrap();
+                        let line = line.trim();
+                        if line.len() > 0 {
+                            println!("types parsing new line not empty");
+                            self.current_section.as_mut().unwrap().raw_value_types.push(line.to_string());
+                        }
+
+                        types_parsing_line.replace(String::new());
+                    }
+                    _ => {
+                        let Some(line) = &mut types_parsing_line else {
+                            panic!("Expected Some in types_parsing_line");
+                        };
+                        line.push(char);
+                    }
+                }
+                continue;
+            }
+
             match char {
                 ':'
                 // params
@@ -138,6 +174,11 @@ impl Parser {
                 | '[' | ']' => {
                     match (std::mem::take(&mut word).trim(), char) {
                         // top level sections
+                        ("types", '{') => {
+                            self.change_section(TopLevelSection::ValueTypes);
+                            types_parsing = true;
+                            types_parsing_line.replace(String::new());
+                        }
                         ("imports", '{') => {
                             // println!("starting with imports");
                             self.change_section(TopLevelSection::Imports);
@@ -202,7 +243,9 @@ impl Parser {
 
                             func.params.push(Param {
                                 name: param_name,
-                                param_type: ParamType(param_type).into(),
+                                param_type: self.all.value_types.from_param_type(ParamType(param_type)).unwrap_or_else(|| {
+                                    panic!("Unknown param type: {param_type}");
+                                }),
                             });
 
                             let current_count = func.params.len();
@@ -259,7 +302,8 @@ impl Parser {
                                 if !return_type.is_empty() {
                                     let return_type = &return_type.split("->").last().unwrap();
                                     let return_type = return_type.trim();
-                                    func.ret.replace(ReturnType(return_type).into());
+                                    
+                                    func.ret.replace(self.all.value_types.from_return_type(ReturnType(return_type)).unwrap());
                                 }
 
                                 self.add_func(func);
@@ -305,6 +349,8 @@ pub fn read_and_parse_interface(path: &str) -> Interface {
 
 #[cfg(test)]
 mod tests {
+    use crate::value_type::{ValueKind, ValueRepr};
+
     use super::*;
 
     fn parse_and_check(input: &str, interface: Interface) {
@@ -336,11 +382,11 @@ mod tests {
         parse_and_check(
             "
             imports {
-                test_import(a: I32)
+                test_import(a: i32)
             }
 
             exports {
-                test_export(b: F32)
+                test_export(b: f32)
             }
         ",
             Interface {
@@ -348,7 +394,13 @@ mod tests {
                     name: "test_import".to_string(),
                     params: vec![Param {
                         name: "a".to_string(),
-                        param_type: ValueType::I32,
+                        param_type: ValueType {
+                            name: "i32".to_string(),
+                            can_be_param: true,
+                            de: None,
+                            kind: ValueKind::Native,
+                            repr: ValueRepr::I32,
+                        },
                     }],
                     ret: None,
                     big_call: false,
@@ -358,7 +410,13 @@ mod tests {
                     name: "test_export".to_string(),
                     params: vec![Param {
                         name: "b".to_string(),
-                        param_type: ValueType::F32,
+                        param_type: ValueType {
+                            name: "f32".to_string(),
+                            can_be_param: true,
+                            de: None,
+                            kind: ValueKind::Native,
+                            repr: ValueRepr::F32,
+                        },
                     }],
                     ret: None,
                     big_call: false,

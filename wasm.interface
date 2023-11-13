@@ -1,11 +1,18 @@
+types {
+    type: i32 kind: Native repr: I32 can_be_param: true
+    type: bool kind: Bool repr: I32 can_be_param: true
+    type: String kind: String repr: FatPtr can_be_param: false
+    type: &String de: String kind: String repr: FatPtr can_be_param: true
+}
+
 imports {
     multi_test[
-        a(a: I32)
-        b(b: Bool)
+        a(a: i32)
+        b(b: bool)
     ]
 }
 
 exports {
     return_string_to_host() -> String
-    give_string_to_guest(string: Str)
+    give_string_to_guest(string: &String)
 }

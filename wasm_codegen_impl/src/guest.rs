@@ -81,9 +81,9 @@ pub(crate) fn gen_imports(input: TokenStream) -> TokenStream {
 
         for parser::Param { name, param_type } in params {
             let name: Ident = syn::parse_str(&name).unwrap();
-            let internal_type = value_type_to_repr_as_token_stream(param_type);
+            let internal_type = value_type_to_repr_as_token_stream(&param_type);
             let serialization = {
-                let mut serialization = match param_type.kind() {
+                let mut serialization = match param_type.kind {
                     ValueKind::Native => quote! { #name as #internal_type },
                     ValueKind::FatPtr => quote! { super::__internal::send_to_host(&#name) },
                     ValueKind::Bool => quote! { #name as i32 },
@@ -98,7 +98,7 @@ pub(crate) fn gen_imports(input: TokenStream) -> TokenStream {
 
                 serialization
             };
-            let param_type = value_type_to_rust_as_syn_type(param_type, false);
+            let param_type = value_type_to_rust_as_syn_type(&param_type, false);
 
             param_names.push(name.clone());
             params_signature.push(quote! {
@@ -112,9 +112,9 @@ pub(crate) fn gen_imports(input: TokenStream) -> TokenStream {
         }
 
         let (ret_type, internal_ret, ret_deserialization) = if let Some(ret_type) = ret {
-            let pub_type = value_type_to_rust_as_syn_type(ret_type, true);
-            let internal_ret_type = value_type_to_repr_as_token_stream(ret_type);
-            let deserialization = match ret_type.kind() {
+            let pub_type = value_type_to_rust_as_syn_type(&ret_type, true);
+            let internal_ret_type = value_type_to_repr_as_token_stream(&ret_type);
+            let deserialization = match ret_type.kind {
                 ValueKind::Native => quote! { call_return as #pub_type },
                 ValueKind::FatPtr => {
                     quote! { super::__internal::read_from_host(call_return) }
@@ -287,9 +287,9 @@ pub(crate) fn impl_exports(input: TokenStream) -> TokenStream {
 
         for p in params {
             let name: Ident = syn::parse_str(&p.name).expect("dt");
-            let pub_type = value_type_to_rust_as_syn_type(p.param_type, true);
-            let param_internal_type = value_type_to_repr_as_token_stream(p.param_type);
-            let deserialization = match p.param_type.kind() {
+            let pub_type = value_type_to_rust_as_syn_type(&p.param_type, true);
+            let param_internal_type = value_type_to_repr_as_token_stream(&p.param_type);
+            let deserialization = match p.param_type.kind {
                 ValueKind::Native => quote! { #name as #pub_type },
                 ValueKind::FatPtr => {
                     quote! { super::__internal::read_from_host(#name) }
@@ -313,8 +313,8 @@ pub(crate) fn impl_exports(input: TokenStream) -> TokenStream {
         }
 
         let (pub_ret, internal_ret, ret_serialization) = if let Some(ret_type) = ret {
-            let internal_type = value_type_to_repr_as_token_stream(ret_type);
-            let serialization = match ret_type.kind() {
+            let internal_type = value_type_to_repr_as_token_stream(&ret_type);
+            let serialization = match ret_type.kind {
                 ValueKind::Native => quote! { call_return as #internal_type },
                 ValueKind::FatPtr => {
                     quote! { super::__internal::send_to_host(&call_return) }
@@ -325,7 +325,7 @@ pub(crate) fn impl_exports(input: TokenStream) -> TokenStream {
                 }
             };
 
-            let ret_type = value_type_to_rust_as_syn_type(ret_type, false);
+            let ret_type = value_type_to_rust_as_syn_type(&ret_type, false);
 
             (
                 quote! { -> #ret_type },

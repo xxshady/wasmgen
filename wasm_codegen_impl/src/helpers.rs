@@ -2,10 +2,7 @@ use proc_macro2::TokenStream;
 use std::path::PathBuf;
 use syn::parse::{Parse, ParseStream};
 
-use crate::{
-    parser,
-    value_type::{ValueRepr, ValueType},
-};
+use crate::{parser, value_type::ValueType};
 
 pub(crate) struct Params {
     interface_file: String,
@@ -40,20 +37,22 @@ pub(crate) fn build_code(code: TokenStream, interface_file: String) -> TokenStre
     code.parse().unwrap()
 }
 
-pub(crate) fn value_type_to_repr_as_token_stream(value_type: ValueType) -> TokenStream {
-    let repr: ValueRepr = value_type.into();
-    let repr_str: &str = repr.into();
+pub(crate) fn value_type_to_repr_as_token_stream(value_type: &ValueType) -> TokenStream {
+    let repr_str: &str = value_type.repr.clone().into();
     repr_str.parse().unwrap()
 }
 
 pub(crate) fn value_type_to_rust_as_syn_type(
-    value_type: ValueType,
+    value_type: &ValueType,
     deserialization: bool,
 ) -> syn::Type {
-    syn::parse_str(if deserialization {
-        value_type.de().unwrap_or(value_type.rust())
+    let r#type = if deserialization {
+        match value_type.de.as_ref() {
+            Some(de) => de.clone(),
+            None => value_type.name.clone(),
+        }
     } else {
-        value_type.rust()
-    })
-    .expect("value_type_to_rust_type_as_token_stream failed")
+        value_type.name.clone()
+    };
+    syn::parse_str(&r#type).expect("value_type_to_rust_type_as_token_stream failed")
 }

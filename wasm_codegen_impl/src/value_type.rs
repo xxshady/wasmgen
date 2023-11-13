@@ -1,116 +1,111 @@
-type RustType = &'static str;
+type RustType = String;
 
-pub(crate) struct ParamType<'a>(pub(crate) &'a str);
-pub(crate) struct ReturnType<'a>(pub(crate) &'a str);
+pub struct ParamType<'a>(pub &'a str);
+pub struct ReturnType<'a>(pub &'a str);
 
-macro_rules! value_type {
-    ( $(
-        $variant:ident
-        rust: $rust:literal
-        $( de: $rust_de:literal )?
-        kind: $kind:ident
-        repr: $repr:ident
-        can_be_param: $can_be_param:expr
-        ;
-    )+ ) => {
-        #[derive(Debug, PartialEq, Clone, Copy)]
-        pub enum ValueType {
-            $( $variant, )+
-        }
-
-        impl ValueType {
-            pub fn kind(&self) -> ValueKind {
-                match self {
-                    $( Self::$variant => ValueKind::$kind, )+
-                }
-            }
-
-            pub fn repr(&self) -> ValueRepr {
-                match self {
-                    $( Self::$variant => ValueRepr::$repr, )+
-                }
-            }
-
-            pub fn rust(&self) -> RustType {
-                match self {
-                    $( Self::$variant => $rust, )+
-                }
-            }
-
-            pub fn de(&self) -> Option<RustType> {
-                match self {
-                    $( $( Self::$variant => Some($rust_de), )? )+
-                    _ => None,
-                }
-            }
-        }
-
-        // for parsing type names in wasm.interface
-        impl<'a> From<ReturnType<'a>> for ValueType {
-            fn from(value: ReturnType) -> Self {
-                match value.0 {
-                    $( stringify!($variant) => Self::$variant, )+
-                    unknown => panic!("Unknown return type: {unknown:?}"),
-                }
-            }
-        }
-
-        impl<'a> From<ParamType<'a>> for ValueType {
-            fn from(value: ParamType) -> Self {
-                match value.0 {
-                    $( stringify!($variant) if $can_be_param => Self::$variant, )+
-                    unknown => panic!("Unknown OR unsupported param type: {unknown:?}"),
-                }
-            }
-        }
-
-        impl From<ValueType> for ValueKind {
-            fn from(value: ValueType) -> Self {
-                match value {
-                    $( ValueType::$variant => ValueKind::$kind, )+
-                }
-            }
-        }
-
-        impl From<ValueType> for ValueRepr {
-            fn from(value: ValueType) -> Self {
-                match value {
-                    $( ValueType::$variant => ValueRepr::$repr, )+
-                }
-            }
-        }
-    };
+#[derive(Debug, PartialEq, Clone)]
+pub struct ValueType {
+    pub name: RustType,
+    pub de: Option<RustType>,
+    pub kind: ValueKind,
+    pub repr: ValueRepr,
+    pub can_be_param: bool,
 }
 
-value_type!(
-    // ---------- native ----------
+#[derive(Debug, Default)]
+pub struct ValueTypePool {
+    types: Vec<ValueType>,
+}
 
-    I8 rust: "i8" kind: Native repr: I32 can_be_param: true;
-    I16 rust: "i16" kind: Native repr: I32 can_be_param: true;
-    I32 rust: "i32" kind: Native repr: I32 can_be_param: true;
-    U8 rust: "u8" kind: Native repr: U32 can_be_param: true;
-    U16 rust: "u16" kind: Native repr: U32 can_be_param: true;
-    U32 rust: "u32" kind: Native repr: U32 can_be_param: true;
-    I64 rust: "i64" kind: Native repr: I64 can_be_param: true;
-    U64 rust: "u64" kind: Native repr: U64 can_be_param: true;
-    F32 rust: "f32" kind: Native repr: F32 can_be_param: true;
-    F64 rust: "f64" kind: Native repr: F64 can_be_param: true;
-    Bool rust: "bool" kind: Bool repr: I32 can_be_param: true;
-    BaseObjectPtr rust: "altv_wasm_shared::BaseObjectPtr" kind: Native repr: U64 can_be_param: true;
-    BaseObjectType rust: "altv_wasm_shared::BaseObjectTypeRaw" kind: Native repr: U32 can_be_param: true;
+impl ValueTypePool {
+    pub fn set_types(&mut self, types: Vec<String>) {
+        self.types = Self::parse_types(types);
+    }
 
-    // ---------- fat ptr ----------
+    pub fn from_param_type(&self, param_type: ParamType) -> Option<ValueType> {
+        self.types
+            .iter()
+            .find(|t| t.name == param_type.0 && t.can_be_param)
+            .cloned()
+    }
 
-    // String should only be used when in return of function
-    String rust: "String" kind: String repr: FatPtr can_be_param: false;
-    // Str should only be used when passing params to function
-    // &String and not &str because it must be allocated in dynamic memory
-    Str rust: "&String" de: "String" kind: String repr: FatPtr can_be_param: true;
-    OptionBool rust: "Option<bool>" kind: FatPtr repr: FatPtr can_be_param: true;
-    Vector3 rust: "altv_wasm_shared::Vector3" kind: FatPtr repr: FatPtr can_be_param: true;
-);
+    pub fn from_return_type(&self, return_type: ReturnType) -> Option<ValueType> {
+        self.types.iter().find(|t| t.name == return_type.0).cloned()
+    }
 
-#[derive(Debug)]
+    fn parse_types(types: Vec<String>) -> Vec<ValueType> {
+        types
+            .into_iter()
+            .map(|raw| {
+                let pat = {
+                    let mut dots = true;
+                    let mut ignore_whitespace = false;
+                    move |c: char| -> bool {
+                        match (c, dots) {
+                            (':', true) => {
+                                dots = false;
+                                ignore_whitespace = true;
+                                false
+                            }
+                            (' ', false) if !ignore_whitespace => {
+                                dots = true;
+                                true
+                            }
+                            ('A'..='z', false) if ignore_whitespace => {
+                                ignore_whitespace = false;
+                                false
+                            }
+                            _ => false,
+                        }
+                    }
+                };
+
+                let mut rust_type = None;
+                let mut de = None;
+                let mut kind = None;
+                let mut repr = None;
+                let mut can_be_param = None;
+                for part in raw.split(pat) {
+                    match part.split(":").collect::<Vec<&str>>()[..] {
+                        [prop, value] => {
+                            let value = value.trim();
+                            match prop.trim() {
+                                "type" => {
+                                    rust_type.replace(value.to_string());
+                                }
+                                "de" => {
+                                    de.replace(value.to_string());
+                                }
+                                "kind" => {
+                                    kind.replace(value.into());
+                                }
+                                "repr" => {
+                                    repr.replace(value.into());
+                                }
+                                "can_be_param" => {
+                                    can_be_param.replace(value == "true");
+                                }
+                                prop => {
+                                    panic!("Unknown prop: {prop}");
+                                }
+                            }
+                        }
+                        _ => unreachable!(),
+                    }
+                }
+                ValueType {
+                    name: rust_type.unwrap(),
+                    de,
+                    kind: kind.unwrap(),
+                    repr: repr.unwrap(),
+                    can_be_param: can_be_param.unwrap(),
+                }
+            })
+            .collect()
+    }
+}
+
+#[derive(Debug, PartialEq, Clone)]
 pub enum ValueKind {
     /// Custom type
     FatPtr,
@@ -124,7 +119,19 @@ pub enum ValueKind {
     String,
 }
 
-#[derive(Debug)]
+impl From<&str> for ValueKind {
+    fn from(value: &str) -> Self {
+        match value {
+            "FatPtr" => Self::FatPtr,
+            "Native" => Self::Native,
+            "Bool" => Self::Bool,
+            "String" => Self::String,
+            _ => panic!("Unknown ValueKind: {value}"),
+        }
+    }
+}
+
+#[derive(Debug, PartialEq, Clone)]
 pub enum ValueRepr {
     I32,
     U32,
@@ -146,5 +153,36 @@ impl From<ValueRepr> for &str {
             ValueRepr::F64 => "f64",
             ValueRepr::FatPtr => "super::__shared::FatPtr",
         }
+    }
+}
+
+impl From<&str> for ValueRepr {
+    fn from(value: &str) -> Self {
+        match value {
+            "I32" => Self::I32,
+            "U32" => Self::U32,
+            "I64" => Self::I64,
+            "U64" => Self::U64,
+            "F32" => Self::F32,
+            "F64" => Self::F64,
+            "FatPtr" => Self::FatPtr,
+            _ => panic!("Unknown ValueRepr: {value}"),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn pool() {
+        let mut pool = ValueTypePool::default();
+        pool.set_types(vec![
+            "type: i8 kind: Native repr: I32 can_be_param: true".to_string(),
+            "type: i16 kind: Native repr: I32 can_be_param: true".to_string(),
+            "type: &String de: String kind: String repr: FatPtr can_be_param: true".to_string(),
+        ]);
+        dbg!(pool);
     }
 }
