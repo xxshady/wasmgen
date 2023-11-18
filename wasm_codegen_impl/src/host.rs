@@ -20,7 +20,7 @@ pub(crate) fn gen_exports(input: TokenStream) -> TokenStream {
         name,
         params,
         ret,
-        big_call,
+        big_call: _, // for now only implemented for guest -> host calls
     } in exports.into_iter().map(|e| match e {
         parser::AnyFunc::Normal(f) => f,
         parser::AnyFunc::MultiFunc(_) => todo!(),
