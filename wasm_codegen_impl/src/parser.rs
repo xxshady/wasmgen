@@ -136,8 +136,14 @@ impl Parser {
         let mut types_parsing = false;
         let mut types_parsing_line: Option<String> = None;
 
+        let mut current_line = 1;
+
         let mut chars = input.chars().peekable();
         while let Some(char) = chars.next() {
+            if char == '\n' {
+                current_line += 1;
+            }
+
             if types_parsing {
                 match char {
                     '}' => {
@@ -226,13 +232,20 @@ impl Parser {
 
                         // params
                         ("", ')') => {
-                            assert!(current_func.is_some());
+                            assert!(current_func.is_some(), "Expected current_func on line: {current_line}");
                             // println!("empty params");
                             return_type_parsing = true;
                         }
 
                         (param_name, ':') => {
-                            assert!(current_param_name.is_none());
+                            assert!(current_param_name.is_none(), "Expected none current_param_name on line: {current_line} current_func: {}", match current_func {
+                                Some(f) => {
+                                    f.name
+                                },
+                                None => {
+                                    "unknown".to_string()
+                                }
+                            });
 
                             let Some(func) = current_func.as_ref() else {
                                 panic!("Expected current func");
