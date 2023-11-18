@@ -313,7 +313,9 @@ impl Parser {
                                     let return_type = &return_type.split("->").last().unwrap();
                                     let return_type = return_type.trim();
                                     
-                                    func.ret.replace(self.all.value_types.from_return_type(ReturnType(return_type)).unwrap());
+                                    func.ret.replace(self.all.value_types.from_return_type(ReturnType(return_type)).unwrap_or_else(|| {
+                                        panic!("Failed to get value type from return type: {return_type}")
+                                    }));
                                 }
 
                                 self.add_func(func);
