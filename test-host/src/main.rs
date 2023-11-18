@@ -160,5 +160,7 @@ fn main() -> wasmtime::Result<()> {
         })
         .unwrap();
 
+    exports.call_option_bool(Some(false)).unwrap();
+
     Ok(())
 }

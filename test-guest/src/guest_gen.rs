@@ -231,6 +231,7 @@ mod guest {
             fn return_string_to_host() -> String;
             fn give_string_to_guest(string: String);
             fn give_custom_to_guest(custom: shared::Custom);
+            fn option_bool(option_bool: Option<bool>);
         }
         pub struct ExportsImpl;
         #[no_mangle]
@@ -262,6 +263,17 @@ mod guest {
                 let custom = super::__internal::read_from_host(custom);
                 #[allow(unused_variables, clippy::let_unit_value)]
                 let call_return = <ExportsImpl as Exports>::give_custom_to_guest(custom);
+            }
+        }
+        #[no_mangle]
+        extern "C" fn __custom_exports_option_bool(
+            option_bool: super::__shared::FatPtr,
+        ) {
+            #[allow(clippy::unnecessary_cast)]
+            {
+                let option_bool = super::__internal::read_from_host(option_bool);
+                #[allow(unused_variables, clippy::let_unit_value)]
+                let call_return = <ExportsImpl as Exports>::option_bool(option_bool);
             }
         }
     }

@@ -24,6 +24,10 @@ impl guest_gen::exports::Exports for guest_gen::exports::ExportsImpl {
     fn give_custom_to_guest(custom: shared::Custom) {
         println!("custom from host: {custom:?}");
     }
+
+    fn option_bool(option_bool: Option<bool>) {
+        println!("option_bool from host: {option_bool:?}");
+    }
 }
 
 #[no_mangle]

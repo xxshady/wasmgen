@@ -4,6 +4,7 @@ types {
     type: String kind: String repr: FatPtr can_be_param: false
     type: &String de: String kind: String repr: FatPtr can_be_param: true
     type: shared::Custom kind: FatPtr repr: FatPtr can_be_param: true
+    type: Option<bool> kind: FatPtr repr: FatPtr can_be_param: true
 }
 
 imports {
@@ -17,4 +18,5 @@ exports {
     return_string_to_host() -> String
     give_string_to_guest(string: &String)
     give_custom_to_guest(custom: shared::Custom)
+    option_bool(option_bool: Option<bool>)
 }

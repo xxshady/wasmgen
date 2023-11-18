@@ -123,6 +123,7 @@ mod host {
                 (super::__shared::FatPtr,),
                 (),
             >,
+            prop_option_bool: wasmtime::TypedFunc<(super::__shared::FatPtr,), ()>,
             memory: wasmtime::Memory,
             store: wasmtime::Store<S>,
             alloc: super::AllocFunc,
@@ -153,6 +154,12 @@ mod host {
                         .get_typed_func(
                             &mut store,
                             stringify!(__custom_exports_give_custom_to_guest),
+                        )
+                        .unwrap(),
+                    prop_option_bool: instance
+                        .get_typed_func(
+                            &mut store,
+                            stringify!(__custom_exports_option_bool),
                         )
                         .unwrap(),
                     memory: instance.get_memory(&mut store, "memory").unwrap(),
@@ -278,6 +285,20 @@ mod host {
                     let call_return = self
                         .prop_give_custom_to_guest
                         .call(&mut self.store, (custom,))?;
+                    Ok(())
+                }
+            }
+            pub fn call_option_bool(
+                &mut self,
+                option_bool: Option<bool>,
+            ) -> wasmtime::Result<()> {
+                #[allow(clippy::unnecessary_cast)]
+                {
+                    let option_bool = self.send_to_guest(&option_bool)?;
+                    #[allow(unused_variables, clippy::let_unit_value)]
+                    let call_return = self
+                        .prop_option_bool
+                        .call(&mut self.store, (option_bool,))?;
                     Ok(())
                 }
             }
