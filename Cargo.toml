@@ -6,7 +6,6 @@ members = [
     "shared",
     "test-guest",
     "test-host",
-    "wasm_codegen",
     "wasm_codegen_impl",
 ]
 

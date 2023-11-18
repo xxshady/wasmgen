@@ -10,9 +10,9 @@ mod parser;
 mod shared;
 mod value_type;
 
-pub fn host(input: TokenStream) -> TokenStream {
-    let exports = host::gen_exports(input.clone());
-    let imports = host::impl_imports(input);
+pub fn host(relative_path: &str) -> TokenStream {
+    let exports = host::gen_exports(relative_path);
+    let imports = host::impl_imports(relative_path);
     let shared = shared::shared_mod();
 
     quote! {
@@ -28,10 +28,10 @@ pub fn host(input: TokenStream) -> TokenStream {
     }
 }
 
-pub fn guest(input: TokenStream) -> TokenStream {
+pub fn guest(relative_path: &str) -> TokenStream {
     let helpers = guest::gen_helpers();
-    let imports = guest::gen_imports(input.clone());
-    let exports = guest::impl_exports(input);
+    let imports = guest::gen_imports(relative_path);
+    let exports = guest::impl_exports(relative_path);
     let shared = shared::shared_mod();
 
     quote! {

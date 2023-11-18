@@ -12,8 +12,8 @@ use crate::{
     value_type::ValueKind,
 };
 
-pub(crate) fn gen_imports(input: TokenStream) -> TokenStream {
-    let (parser::Interface { imports, .. }, interface_file) = parse_interface_file(input);
+pub(crate) fn gen_imports(relative_path: &str) -> TokenStream {
+    let (parser::Interface { imports, .. }, interface_file) = parse_interface_file(relative_path);
 
     let mut funcs = vec![];
 
@@ -262,8 +262,8 @@ pub(crate) fn gen_imports(input: TokenStream) -> TokenStream {
     )
 }
 
-pub(crate) fn impl_exports(input: TokenStream) -> TokenStream {
-    let (parser::Interface { exports, .. }, interface_file) = parse_interface_file(input);
+pub(crate) fn impl_exports(relative_path: &str) -> TokenStream {
+    let (parser::Interface { exports, .. }, interface_file) = parse_interface_file(relative_path);
 
     let mut trait_funcs = vec![];
     let mut extern_funcs = vec![];

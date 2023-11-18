@@ -33,7 +33,7 @@ pub fn __generate_bindings(get_code: impl FnOnce() -> TokenStream, side: &str, o
 macro_rules! generate_bindings {
     ($side:ident, $interface_file:literal, $out_file:literal) => {
         $crate::__generate_bindings(
-            || $crate::wasm_codegen_impl::$side($crate::quote! { $interface_file }),
+            || $crate::wasm_codegen_impl::$side($interface_file),
             stringify!($side),
             $out_file,
         );
