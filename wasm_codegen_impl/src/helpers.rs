@@ -54,5 +54,11 @@ pub(crate) fn value_type_to_rust_as_syn_type(
     } else {
         value_type.name.clone()
     };
-    syn::parse_str(&r#type).expect("value_type_to_rust_type_as_token_stream failed")
+
+    syn::parse_str(&r#type).unwrap_or_else(|e| {
+        panic!(
+            "value_type_to_rust_type_as_token_stream failed with type: {}, error: {e}",
+            r#type
+        );
+    })
 }
