@@ -119,6 +119,10 @@ mod host {
                 (super::__shared::FatPtr,),
                 (),
             >,
+            prop_give_custom_to_guest: wasmtime::TypedFunc<
+                (super::__shared::FatPtr,),
+                (),
+            >,
             memory: wasmtime::Memory,
             store: wasmtime::Store<S>,
             alloc: super::AllocFunc,
@@ -143,6 +147,12 @@ mod host {
                         .get_typed_func(
                             &mut store,
                             stringify!(__custom_exports_give_string_to_guest),
+                        )
+                        .unwrap(),
+                    prop_give_custom_to_guest: instance
+                        .get_typed_func(
+                            &mut store,
+                            stringify!(__custom_exports_give_custom_to_guest),
                         )
                         .unwrap(),
                     memory: instance.get_memory(&mut store, "memory").unwrap(),
@@ -254,6 +264,20 @@ mod host {
                     let call_return = self
                         .prop_give_string_to_guest
                         .call(&mut self.store, (string,))?;
+                    Ok(())
+                }
+            }
+            pub fn call_give_custom_to_guest(
+                &mut self,
+                custom: shared::Custom,
+            ) -> wasmtime::Result<()> {
+                #[allow(clippy::unnecessary_cast)]
+                {
+                    let custom = self.send_to_guest(&custom)?;
+                    #[allow(unused_variables, clippy::let_unit_value)]
+                    let call_return = self
+                        .prop_give_custom_to_guest
+                        .call(&mut self.store, (custom,))?;
                     Ok(())
                 }
             }

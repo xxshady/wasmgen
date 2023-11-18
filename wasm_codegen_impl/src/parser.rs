@@ -136,7 +136,8 @@ impl Parser {
         let mut types_parsing = false;
         let mut types_parsing_line: Option<String> = None;
 
-        for char in input.chars() {
+        let mut chars = input.chars().peekable();
+        while let Some(char) = chars.next() {
             if types_parsing {
                 match char {
                     '}' => {
@@ -162,6 +163,15 @@ impl Parser {
                     }
                 }
                 continue;
+            }
+            
+            if let Some(':') = chars.peek() {
+                if char == ':' {
+                    println!("skipping ::");
+                    chars.next();
+                    word += "::";
+                    continue;
+                }
             }
 
             match char {

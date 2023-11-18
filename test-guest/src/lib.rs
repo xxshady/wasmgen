@@ -13,11 +13,16 @@ mod guest_gen;
 impl guest_gen::exports::Exports for guest_gen::exports::ExportsImpl {
     fn give_string_to_guest(string: String) {
         assert_eq!(string.len(), string.len());
+        println!("string from host: {string:?}");
         // guest_gen::imports::log(&format!("string from host: {string:?}"));
     }
 
     fn return_string_to_host() -> String {
         "string for host ಥ_ಥ".to_string()
+    }
+
+    fn give_custom_to_guest(custom: shared::Custom) {
+        println!("custom from host: {custom:?}");
     }
 }
 

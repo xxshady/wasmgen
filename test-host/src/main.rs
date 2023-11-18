@@ -1,3 +1,4 @@
+use shared::Custom;
 use wasmtime::*;
 
 use wasmtime_wasi::{WasiCtx, WasiCtxBuilder};
@@ -147,6 +148,17 @@ fn main() -> wasmtime::Result<()> {
     let mut exports = host_gen::exports::Exports::new(|s| &mut s.big_call_ptr, store, instance);
 
     exports.call_main().unwrap();
+
+    exports
+        .call_give_string_to_guest(&"test".to_string())
+        .unwrap();
+
+    exports
+        .call_give_custom_to_guest(Custom {
+            a: 123,
+            str: "awdawdфцвфцлвоцоДАААААА".to_string(),
+        })
+        .unwrap();
 
     Ok(())
 }

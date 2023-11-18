@@ -38,20 +38,20 @@ impl ValueTypePool {
             .into_iter()
             .map(|raw| {
                 let pat = {
-                    let mut dots = true;
+                    let mut colon = true;
                     let mut ignore_whitespace = false;
                     move |c: char| -> bool {
-                        match (c, dots) {
-                            (':', true) => {
-                                dots = false;
+                        match (c, colon, ignore_whitespace) {
+                            (':', true, _) => {
+                                colon = false;
                                 ignore_whitespace = true;
                                 false
                             }
-                            (' ', false) if !ignore_whitespace => {
-                                dots = true;
+                            (' ', false, false) => {
+                                colon = true;
                                 true
                             }
-                            ('A'..='z', false) if ignore_whitespace => {
+                            ('A'..='Z' | 'a'..='z' | '0'..='9' | '_', false, true) => {
                                 ignore_whitespace = false;
                                 false
                             }
@@ -66,7 +66,7 @@ impl ValueTypePool {
                 let mut repr = None;
                 let mut can_be_param = None;
                 for part in raw.split(pat) {
-                    match part.split(":").collect::<Vec<&str>>()[..] {
+                    match part.split(": ").collect::<Vec<&str>>()[..] {
                         [prop, value] => {
                             let value = value.trim();
                             match prop.trim() {
@@ -182,6 +182,7 @@ mod tests {
             "type: i8 kind: Native repr: I32 can_be_param: true".to_string(),
             "type: i16 kind: Native repr: I32 can_be_param: true".to_string(),
             "type: &String de: String kind: String repr: FatPtr can_be_param: true".to_string(),
+            "type: shared::Custom kind: FatPtr repr: FatPtr can_be_param: true".to_string(),
         ]);
         dbg!(pool);
     }

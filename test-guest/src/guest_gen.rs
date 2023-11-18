@@ -230,6 +230,7 @@ mod guest {
         pub trait Exports {
             fn return_string_to_host() -> String;
             fn give_string_to_guest(string: String);
+            fn give_custom_to_guest(custom: shared::Custom);
         }
         pub struct ExportsImpl;
         #[no_mangle]
@@ -250,6 +251,17 @@ mod guest {
                 let string = super::__internal::read_string_from_host(string);
                 #[allow(unused_variables, clippy::let_unit_value)]
                 let call_return = <ExportsImpl as Exports>::give_string_to_guest(string);
+            }
+        }
+        #[no_mangle]
+        extern "C" fn __custom_exports_give_custom_to_guest(
+            custom: super::__shared::FatPtr,
+        ) {
+            #[allow(clippy::unnecessary_cast)]
+            {
+                let custom = super::__internal::read_from_host(custom);
+                #[allow(unused_variables, clippy::let_unit_value)]
+                let call_return = <ExportsImpl as Exports>::give_custom_to_guest(custom);
             }
         }
     }
