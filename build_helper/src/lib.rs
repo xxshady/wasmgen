@@ -2,7 +2,7 @@ use proc_macro2::TokenStream;
 use std::fs;
 
 pub use quote::quote;
-pub use wasm_codegen_impl;
+pub use wasm_codegen;
 
 const AUTO_GENERATED: &str = "
     // AUTO-GENERATED
@@ -32,7 +32,7 @@ pub fn __generate_bindings(code: TokenStream, side: &str, out_file: &str) {
 macro_rules! generate_bindings {
     ($side:ident, $interface_file:literal, $out_file:literal) => {
         $crate::__generate_bindings(
-            $crate::wasm_codegen_impl::$side($interface_file),
+            $crate::wasm_codegen::$side($interface_file),
             stringify!($side),
             $out_file,
         );

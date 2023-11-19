@@ -7,7 +7,7 @@ license.workspace = true
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-wasm_codegen_impl.path = '../wasm_codegen_impl'
+wasm_codegen.path = '../wasm_codegen'
 quote.workspace = true
 syn.workspace = true
 prettyplease = "0.2.15"

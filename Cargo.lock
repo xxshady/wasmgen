@@ -122,7 +122,7 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
- "wasm_codegen_impl",
+ "wasm_codegen",
 ]
 
 [[package]]
@@ -1530,7 +1530,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "wasm_codegen_impl"
+name = "wasm_codegen"
 version = "0.0.0"
 dependencies = [
  "proc-macro2",

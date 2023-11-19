@@ -1,13 +1,7 @@
 [workspace]
 resolver = "2"
 
-members = [
-    "build_helper",
-    "shared",
-    "test-guest",
-    "test-host",
-    "wasm_codegen_impl",
-]
+members = ["build_helper", "shared", "test-guest", "test-host", "wasm_codegen"]
 
 [workspace.package]
 version = "0.0.0"
