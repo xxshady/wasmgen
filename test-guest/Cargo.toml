@@ -3,6 +3,7 @@ name = "test-guest"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+exclude = ["src/guest_gen.rs"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
