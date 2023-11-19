@@ -12,14 +12,14 @@ pub struct ValueType {
     pub can_be_param: bool,
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct ValueTypePool {
     types: Vec<ValueType>,
 }
 
 impl ValueTypePool {
-    pub fn set_types(&mut self, types: Vec<String>) {
-        self.types = Self::parse_types(types);
+    pub fn append_types(&mut self, types: Vec<String>) {
+        self.types.append(&mut Self::parse_types(types));
     }
 
     pub fn from_param_type(&self, param_type: ParamType) -> Option<ValueType> {
@@ -178,7 +178,7 @@ mod tests {
     #[test]
     fn pool() {
         let mut pool = ValueTypePool::default();
-        pool.set_types(vec![
+        pool.append_types(vec![
             "type: i8 kind: Native repr: I32 can_be_param: true".to_string(),
             "type: i16 kind: Native repr: I32 can_be_param: true".to_string(),
             "type: &String de: String kind: String repr: FatPtr can_be_param: true".to_string(),

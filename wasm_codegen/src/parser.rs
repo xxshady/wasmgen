@@ -54,21 +54,21 @@ struct Section {
     raw_value_types: Vec<String>,
 }
 
-#[derive(Debug, Default)]
-struct AllSections {
-    value_types: ValueTypePool,
+#[derive(Debug)]
+struct AllSections<'a> {
+    value_types: &'a mut ValueTypePool,
     imports: Option<Vec<AnyFunc>>,
     exports: Option<Vec<AnyFunc>>,
 }
 
-#[derive(Debug, Default)]
-struct Parser {
+#[derive(Debug)]
+struct Parser<'a> {
     current_section: Option<Section>,
-    all: AllSections,
+    all: AllSections<'a>,
     current_multi_func: Option<MultiFunc>,
 }
 
-impl Parser {
+impl Parser<'_> {
     fn change_section(&mut self, to: TopLevelSection) {
         let section = self.current_section.take();
         if let Some(section) = section {
@@ -116,7 +116,7 @@ impl Parser {
     fn collect_section(&mut self, section: Section) {
         match section.kind {
             TopLevelSection::ValueTypes => {
-                self.all.value_types.set_types(section.raw_value_types);
+                self.all.value_types.append_types(section.raw_value_types);
             }
             TopLevelSection::Exports => {
                 self.all.exports.replace(section.funcs);
@@ -361,15 +361,20 @@ pub struct Interface {
     pub exports: Vec<AnyFunc>,
 }
 
-fn parse(input: String) -> Interface {
-    let parser = Parser::default();
+fn parse(input: String, value_types: &mut ValueTypePool) -> Interface {
+    let parser = Parser {
+        all: AllSections { value_types, exports: None,
+        imports: None },
+        current_multi_func: None,
+        current_section: None,
+    };
     parser.parse(input)
 }
 
-pub fn read_and_parse_interface(path: &str) -> Interface {
+pub fn read_and_parse_interface(path: &str, value_types: &mut ValueTypePool) -> Interface {
     let input = fs::read_to_string(path)
         .unwrap_or_else(|e| panic!("Failed to read interface file at: {path:?}, error: {e}"));
-    parse(input)
+    parse(input, value_types)
 }
 
 #[cfg(test)]
@@ -378,8 +383,8 @@ mod tests {
 
     use super::*;
 
-    fn parse_and_check(input: &str, interface: Interface) {
-        let parsed = parse(input.to_string());
+    fn parse_and_check(input: &str, interface: Interface, mut value_types: ValueTypePool) {
+        let parsed = parse(input.to_string(), &mut value_types);
         assert_eq!(parsed, interface);
     }
 
@@ -399,6 +404,7 @@ mod tests {
                 imports: vec![],
                 exports: vec![],
             },
+            Default::default(),
         );
     }
 
@@ -447,6 +453,7 @@ mod tests {
                     big_call: false,
                 })],
             },
+            Default::default(),
         );
     }
 
@@ -507,6 +514,7 @@ mod tests {
                     big_call: false,
                 })],
             },
+            Default::default(),
         );
     }
 }

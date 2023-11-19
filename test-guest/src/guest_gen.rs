@@ -222,9 +222,82 @@ mod guest {
                 let call_return = unsafe { __custom_imports_multi_test(1u32) };
             }
         }
+        #[link(wasm_import_module = "__custom_imports")]
+        extern "C" {
+            #[link_name = "extra"]
+            fn __custom_imports_extra(func_index: u32) -> u64;
+        }
+        pub fn extra_a(a: i32) {
+            #[allow(clippy::unnecessary_cast)]
+            {
+                let mut big_call_args = unsafe {
+                    let mut args = Vec::from_raw_parts(
+                        BIG_CALL_PTR.get() as *mut u8,
+                        super::__shared::BYTES_TO_STORE_U64_32_TIMES,
+                        super::__shared::BYTES_TO_STORE_U64_32_TIMES,
+                    );
+                    args.set_len(0);
+                    args
+                };
+                big_call_args
+                    .extend_from_slice(
+                        &super::__shared::NumAsU64Arr::into_bytes(a as i32),
+                    );
+                std::mem::forget(big_call_args);
+                #[allow(unused_variables, clippy::let_unit_value)]
+                let call_return = unsafe { __custom_imports_extra(0u32) };
+            }
+        }
+        pub fn extra_b(b: bool) {
+            #[allow(clippy::unnecessary_cast)]
+            {
+                let mut big_call_args = unsafe {
+                    let mut args = Vec::from_raw_parts(
+                        BIG_CALL_PTR.get() as *mut u8,
+                        super::__shared::BYTES_TO_STORE_U64_32_TIMES,
+                        super::__shared::BYTES_TO_STORE_U64_32_TIMES,
+                    );
+                    args.set_len(0);
+                    args
+                };
+                big_call_args
+                    .extend_from_slice(
+                        &super::__shared::NumAsU64Arr::into_bytes(b as i32),
+                    );
+                std::mem::forget(big_call_args);
+                #[allow(unused_variables, clippy::let_unit_value)]
+                let call_return = unsafe { __custom_imports_extra(1u32) };
+            }
+        }
+        pub fn extra_option_i32(option_i32: Option<i32>) {
+            #[allow(clippy::unnecessary_cast)]
+            {
+                let mut big_call_args = unsafe {
+                    let mut args = Vec::from_raw_parts(
+                        BIG_CALL_PTR.get() as *mut u8,
+                        super::__shared::BYTES_TO_STORE_U64_32_TIMES,
+                        super::__shared::BYTES_TO_STORE_U64_32_TIMES,
+                    );
+                    args.set_len(0);
+                    args
+                };
+                big_call_args
+                    .extend_from_slice(
+                        &super::__shared::NumAsU64Arr::into_bytes(
+                            super::__internal::send_to_host(&option_i32),
+                        ),
+                    );
+                std::mem::forget(big_call_args);
+                #[allow(unused_variables, clippy::let_unit_value)]
+                let call_return = unsafe { __custom_imports_extra(2u32) };
+            }
+        }
     }
     const _: &str = include_str!(
         r#"C:\\dev\\rust\\wasmgen\\test-guest\\../wasm.interface"#
+    );
+    const _: &str = include_str!(
+        r#"C:\\dev\\rust\\wasmgen\\test-guest\\../extra_wasm.interface"#
     );
     pub mod exports {
         pub trait Exports {

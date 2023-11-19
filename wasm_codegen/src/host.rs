@@ -9,7 +9,9 @@ use crate::helpers::{
 };
 
 pub(crate) fn gen_exports(relative_path: &str) -> TokenStream {
-    let (parser::Interface { exports, .. }, interface_file) = parse_interface_file(relative_path);
+    let mut value_types = Default::default();
+    let (parser::Interface { exports, .. }, interface_file) =
+        parse_interface_file(relative_path, &mut value_types);
 
     let mut private_props = vec![];
     let mut private_prop_names = vec![];
@@ -215,13 +217,214 @@ pub(crate) fn gen_exports(relative_path: &str) -> TokenStream {
                 }
             }
         },
-        interface_file,
+        vec![interface_file],
     )
 }
 
-pub(crate) fn impl_imports(relative_path: &str) -> TokenStream {
-    let (parser::Interface { imports, .. }, interface_file) = parse_interface_file(relative_path);
+pub(crate) fn impl_imports(main_interface_path: &str, extra_interfaces: &[&str]) -> TokenStream {
+    let mut main_value_types = Default::default();
+    let (parser::Interface { imports, .. }, main_interface_file) =
+        parse_interface_file(main_interface_path, &mut main_value_types);
 
+    let (main_trait_methods, main_linker_funcs) = gen_import_internals(imports);
+
+    let mut extra_interface_traits = vec![];
+    let mut extra_interface_linker_funcs = vec![];
+    let mut extra_interface_trait_bounds = vec![];
+    let mut extra_interface_files = vec![];
+
+    for interface_path in extra_interfaces {
+        let mut value_types = main_value_types.clone();
+
+        let (parser::Interface { imports, .. }, interface_file) =
+            parse_interface_file(interface_path, &mut value_types);
+        let (trait_methods, mut linker_funcs) = gen_import_internals(imports);
+
+        let interface_name = {
+            let raw = std::path::Path::new(interface_path)
+                .file_stem()
+                .unwrap()
+                .to_string_lossy()
+                .to_string();
+
+            syn::parse_str::<syn::Ident>(&raw).unwrap()
+        };
+
+        let interface_trait = quote! {
+            pub trait #interface_name {
+                #( #trait_methods )*
+            }
+        };
+        extra_interface_trait_bounds.push(quote! { + extra_interfaces::#interface_name });
+        extra_interface_traits.push(interface_trait);
+        extra_interface_files.push(interface_file);
+        extra_interface_linker_funcs.append(&mut linker_funcs);
+    }
+
+    let trait_bounds = quote! {
+        U: Imports #( #extra_interface_trait_bounds )*
+    };
+
+    build_code(
+        quote! {
+            pub mod imports {
+                pub trait Imports {
+                    fn get_memory(&self) -> Option<wasmtime::Memory>;
+                    fn set_memory(&mut self, memory: wasmtime::Memory);
+
+                    fn get_free(&self) -> Option<super::FreeFunc>;
+                    fn set_free(&mut self, free: super::FreeFunc);
+
+                    fn get_alloc(&self) -> Option<super::AllocFunc>;
+                    fn set_alloc(&mut self, alloc: super::AllocFunc);
+
+                    fn get_big_call_ptr(&self) -> super::Ptr;
+
+                    #( #main_trait_methods )*
+                }
+
+                pub mod extra_interfaces {
+                    #( #extra_interface_traits )*
+                }
+
+                pub fn add_to_linker<#trait_bounds>(linker: &mut wasmtime::Linker<U>) {
+                    fn get_memory<#trait_bounds>(caller: &mut wasmtime::Caller<U>) -> wasmtime::Memory {
+                        let Some(wasmtime::Extern::Memory(memory)) = caller.get_export("memory") else {
+                            panic!("Failed to get memory export")
+                        };
+                        memory
+                    }
+
+                    fn read_big_call_args<#trait_bounds>(
+                        caller: &mut wasmtime::Caller<U>,
+                    ) -> &'static std::thread::LocalKey<std::cell::RefCell<Vec<u8>>> {
+                        thread_local! {
+                            static ARGS: std::cell::RefCell<Vec<u8>> = std::cell::RefCell::new(vec![0u8; super::__shared::BYTES_TO_STORE_U64_32_TIMES]);
+                        }
+
+                        let big_call_ptr = caller.data().get_big_call_ptr();
+
+                        ARGS.with_borrow_mut(|args| {
+                            get_memory(caller)
+                                .read(caller, big_call_ptr as usize, args)
+                                .unwrap();
+                        });
+                        &ARGS
+                    }
+
+                    fn get_memory_and<
+                        #trait_bounds,
+                        Params: wasmtime::WasmParams,
+                        Results: wasmtime::WasmResults,
+                    >(
+                        caller: &mut wasmtime::Caller<U>,
+                        and: &'static str,
+                    ) -> (wasmtime::Memory, wasmtime::TypedFunc<Params, Results>) {
+                        let memory = get_memory(caller);
+                        let Some(wasmtime::Extern::Func(func)) = caller.get_export(and) else {
+                            panic!("Failed to get {and:?} export")
+                        };
+                        (memory, func.typed::<Params, Results>(caller).unwrap())
+                    }
+
+                    fn read_to_buffer<#trait_bounds>(
+                        mut caller: &mut wasmtime::Caller<U>,
+                        fat_ptr: super::__shared::FatPtr,
+                        call_free: bool,
+                    ) -> wasmtime::Result<Vec<u8>> {
+                        let memory = caller.data().get_memory();
+                        let free = caller.data().get_free();
+                        let (memory, free) = if free.is_some() {
+                            (memory.unwrap(), free.unwrap())
+                        } else {
+                            get_memory_and(caller, "__custom_free")
+                        };
+
+                        let (ptr, size) = super::__shared::from_fat_ptr(fat_ptr);
+                        let mut buffer = vec![0; size as usize];
+                        memory.read(&caller, ptr as usize, &mut buffer)?;
+                        if call_free {
+                            free.call(&mut caller, fat_ptr)?;
+                        }
+
+                        let data = caller.data_mut();
+                        data.set_memory(memory);
+                        data.set_free(free);
+
+                        Ok(buffer)
+                    }
+
+                    fn read_from_guest<#trait_bounds, T: serde::de::DeserializeOwned>(
+                        caller: &mut wasmtime::Caller<U>,
+                        fat_ptr: super::__shared::FatPtr,
+                    ) -> wasmtime::Result<T> {
+                        let buffer = read_to_buffer(caller, fat_ptr, true)?;
+                        Ok(bincode::deserialize(&buffer)?)
+                    }
+
+                    fn read_string_ref_from_guest<#trait_bounds>(
+                        caller: &mut wasmtime::Caller<U>,
+                        fat_ptr: super::__shared::FatPtr,
+                    ) -> wasmtime::Result<String> {
+                        let buffer = read_to_buffer(caller, fat_ptr, false)?;
+                        Ok(String::from_utf8(buffer)?)
+                    }
+
+                    fn clone_bytes_to_guest<#trait_bounds>(
+                        mut caller: &mut wasmtime::Caller<U>,
+                        bytes: &[u8],
+                    ) -> wasmtime::Result<super::__shared::FatPtr> {
+                        let (memory, alloc) = {
+                            let data = caller.data();
+                            (data.get_memory(), data.get_alloc())
+                        };
+                        let (memory, alloc) = if alloc.is_some() {
+                            (memory.unwrap(), alloc.unwrap())
+                        } else {
+                            get_memory_and(caller, "__custom_alloc")
+                        };
+
+                        let size = bytes.len().try_into()?;
+                        let ptr = alloc.call(&mut caller, size)?;
+                        memory.write(&mut caller, ptr as usize, bytes)?;
+
+                        let data = caller.data_mut();
+                        data.set_memory(memory);
+                        data.set_alloc(alloc);
+
+                        Ok(super::__shared::to_fat_ptr(ptr, size))
+                    }
+
+                    fn send_to_guest<#trait_bounds, T: ?Sized + serde::Serialize>(
+                        caller: &mut wasmtime::Caller<U>,
+                        data: &T,
+                    ) -> wasmtime::Result<super::__shared::FatPtr> {
+                        let bytes = bincode::serialize(&data)?;
+                        clone_bytes_to_guest(caller, &bytes)
+                    }
+
+                    fn send_string_to_guest<#trait_bounds>(
+                        caller: &mut wasmtime::Caller<U>,
+                        string: String,
+                    ) -> wasmtime::Result<super::__shared::FatPtr> {
+                        clone_bytes_to_guest(caller, string.as_bytes())
+                    }
+
+                    #( #main_linker_funcs )*
+
+                    #( #extra_interface_linker_funcs )*
+                }
+            }
+        },
+        {
+            let mut interface_paths = vec![main_interface_file];
+            interface_paths.append(&mut extra_interface_files);
+            interface_paths
+        },
+    )
+}
+
+fn gen_import_internals(imports: Vec<parser::AnyFunc>) -> (Vec<TokenStream>, Vec<TokenStream>) {
     let mut trait_methods = vec![];
     let mut linker_funcs = vec![];
 
@@ -463,151 +666,5 @@ pub(crate) fn impl_imports(relative_path: &str) -> TokenStream {
         });
     }
 
-    build_code(
-        quote! {
-            pub mod imports {
-                pub trait Imports {
-                    fn get_memory(&self) -> Option<wasmtime::Memory>;
-                    fn set_memory(&mut self, memory: wasmtime::Memory);
-
-                    fn get_free(&self) -> Option<super::FreeFunc>;
-                    fn set_free(&mut self, free: super::FreeFunc);
-
-                    fn get_alloc(&self) -> Option<super::AllocFunc>;
-                    fn set_alloc(&mut self, alloc: super::AllocFunc);
-
-                    fn get_big_call_ptr(&self) -> super::Ptr;
-
-                    #( #trait_methods )*
-                }
-
-                pub fn add_to_linker<U: Imports>(linker: &mut wasmtime::Linker<U>) {
-                    fn get_memory<U: Imports>(caller: &mut wasmtime::Caller<U>) -> wasmtime::Memory {
-                        let Some(wasmtime::Extern::Memory(memory)) = caller.get_export("memory") else {
-                            panic!("Failed to get memory export")
-                        };
-                        memory
-                    }
-
-                    fn read_big_call_args<U: Imports>(
-                        caller: &mut wasmtime::Caller<U>,
-                    ) -> &'static std::thread::LocalKey<std::cell::RefCell<Vec<u8>>> {
-                        thread_local! {
-                            static ARGS: std::cell::RefCell<Vec<u8>> = std::cell::RefCell::new(vec![0u8; super::__shared::BYTES_TO_STORE_U64_32_TIMES]);
-                        }
-
-                        let big_call_ptr = caller.data().get_big_call_ptr();
-
-                        ARGS.with_borrow_mut(|args| {
-                            get_memory(caller)
-                                .read(caller, big_call_ptr as usize, args)
-                                .unwrap();
-                        });
-                        &ARGS
-                    }
-
-                    fn get_memory_and<
-                        U: Imports,
-                        Params: wasmtime::WasmParams,
-                        Results: wasmtime::WasmResults,
-                    >(
-                        caller: &mut wasmtime::Caller<U>,
-                        and: &'static str,
-                    ) -> (wasmtime::Memory, wasmtime::TypedFunc<Params, Results>) {
-                        let memory = get_memory(caller);
-                        let Some(wasmtime::Extern::Func(func)) = caller.get_export(and) else {
-                            panic!("Failed to get {and:?} export")
-                        };
-                        (memory, func.typed::<Params, Results>(caller).unwrap())
-                    }
-
-                    fn read_to_buffer<U: Imports>(
-                        mut caller: &mut wasmtime::Caller<U>,
-                        fat_ptr: super::__shared::FatPtr,
-                        call_free: bool,
-                    ) -> wasmtime::Result<Vec<u8>> {
-                        let memory = caller.data().get_memory();
-                        let free = caller.data().get_free();
-                        let (memory, free) = if free.is_some() {
-                            (memory.unwrap(), free.unwrap())
-                        } else {
-                            get_memory_and(caller, "__custom_free")
-                        };
-
-                        let (ptr, size) = super::__shared::from_fat_ptr(fat_ptr);
-                        let mut buffer = vec![0; size as usize];
-                        memory.read(&caller, ptr as usize, &mut buffer)?;
-                        if call_free {
-                            free.call(&mut caller, fat_ptr)?;
-                        }
-
-                        let data = caller.data_mut();
-                        data.set_memory(memory);
-                        data.set_free(free);
-
-                        Ok(buffer)
-                    }
-
-                    fn read_from_guest<U: Imports, T: serde::de::DeserializeOwned>(
-                        caller: &mut wasmtime::Caller<U>,
-                        fat_ptr: super::__shared::FatPtr,
-                    ) -> wasmtime::Result<T> {
-                        let buffer = read_to_buffer(caller, fat_ptr, true)?;
-                        Ok(bincode::deserialize(&buffer)?)
-                    }
-
-                    fn read_string_ref_from_guest<U: Imports>(
-                        caller: &mut wasmtime::Caller<U>,
-                        fat_ptr: super::__shared::FatPtr,
-                    ) -> wasmtime::Result<String> {
-                        let buffer = read_to_buffer(caller, fat_ptr, false)?;
-                        Ok(String::from_utf8(buffer)?)
-                    }
-
-                    fn clone_bytes_to_guest<U: Imports>(
-                        mut caller: &mut wasmtime::Caller<U>,
-                        bytes: &[u8],
-                    ) -> wasmtime::Result<super::__shared::FatPtr> {
-                        let (memory, alloc) = {
-                            let data = caller.data();
-                            (data.get_memory(), data.get_alloc())
-                        };
-                        let (memory, alloc) = if alloc.is_some() {
-                            (memory.unwrap(), alloc.unwrap())
-                        } else {
-                            get_memory_and(caller, "__custom_alloc")
-                        };
-
-                        let size = bytes.len().try_into()?;
-                        let ptr = alloc.call(&mut caller, size)?;
-                        memory.write(&mut caller, ptr as usize, bytes)?;
-
-                        let data = caller.data_mut();
-                        data.set_memory(memory);
-                        data.set_alloc(alloc);
-
-                        Ok(super::__shared::to_fat_ptr(ptr, size))
-                    }
-
-                    fn send_to_guest<U: Imports, T: ?Sized + serde::Serialize>(
-                        caller: &mut wasmtime::Caller<U>,
-                        data: &T,
-                    ) -> wasmtime::Result<super::__shared::FatPtr> {
-                        let bytes = bincode::serialize(&data)?;
-                        clone_bytes_to_guest(caller, &bytes)
-                    }
-
-                    fn send_string_to_guest<U: Imports>(
-                        caller: &mut wasmtime::Caller<U>,
-                        string: String,
-                    ) -> wasmtime::Result<super::__shared::FatPtr> {
-                        clone_bytes_to_guest(caller, string.as_bytes())
-                    }
-
-                    #( #linker_funcs )*
-                }
-            }
-        },
-        interface_file,
-    )
+    (trait_methods, linker_funcs)
 }

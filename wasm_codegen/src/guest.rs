@@ -12,8 +12,29 @@ use crate::{
     value_type::ValueKind,
 };
 
-pub(crate) fn gen_imports(relative_path: &str) -> TokenStream {
-    let (parser::Interface { imports, .. }, interface_file) = parse_interface_file(relative_path);
+pub(crate) fn gen_imports(
+    main_interface_path: &str,
+    extra_interface_paths: &[&str],
+) -> TokenStream {
+    let mut main_value_types = Default::default();
+    let (parser::Interface { mut imports, .. }, main_interface_file) =
+        parse_interface_file(main_interface_path, &mut main_value_types);
+
+    let mut extra_interface_files = vec![];
+
+    for interface_path in extra_interface_paths {
+        let mut value_types = main_value_types.clone();
+        let (
+            parser::Interface {
+                imports: mut extra_imports,
+                ..
+            },
+            interface_file,
+        ) = parse_interface_file(interface_path, &mut value_types);
+
+        extra_interface_files.push(interface_file);
+        imports.append(&mut extra_imports);
+    }
 
     let mut funcs = vec![];
 
@@ -258,12 +279,18 @@ pub(crate) fn gen_imports(relative_path: &str) -> TokenStream {
                 #( #funcs )*
             }
         },
-        interface_file,
+        {
+            let mut interface_paths = vec![main_interface_file];
+            interface_paths.append(&mut extra_interface_files);
+            interface_paths
+        },
     )
 }
 
 pub(crate) fn impl_exports(relative_path: &str) -> TokenStream {
-    let (parser::Interface { exports, .. }, interface_file) = parse_interface_file(relative_path);
+    let mut main_value_types = Default::default();
+    let (parser::Interface { exports, .. }, interface_file) =
+        parse_interface_file(relative_path, &mut main_value_types);
 
     let mut trait_funcs = vec![];
     let mut extern_funcs = vec![];
@@ -369,7 +396,7 @@ pub(crate) fn impl_exports(relative_path: &str) -> TokenStream {
                 #( #extern_funcs )*
             }
         },
-        interface_file,
+        vec![interface_file],
     )
 }
 

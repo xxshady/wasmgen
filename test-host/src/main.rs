@@ -111,6 +111,20 @@ impl host_gen::imports::Imports for State {
     }
 }
 
+impl host_gen::imports::extra_interfaces::extra_wasm for State {
+    fn extra_a(&self, a: i32) {
+        println!("extra_a {a}");
+    }
+
+    fn extra_b(&self, b: bool) {
+        println!("extra_b {b}");
+    }
+
+    fn extra_option_i32(&self, option_i32: Option<i32>) {
+        println!("extra_option_i32 {option_i32:?}");
+    }
+}
+
 fn main() -> wasmtime::Result<()> {
     std::env::set_var("RUST_BACKTRACE", "1");
 

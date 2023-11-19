@@ -102,4 +102,7 @@ fn main() {
 
     guest_gen::imports::multi_test_a(123);
     guest_gen::imports::multi_test_b(true);
+    guest_gen::imports::extra_a(12345);
+    guest_gen::imports::extra_b(false);
+    guest_gen::imports::extra_option_i32(Some(123029));
 }

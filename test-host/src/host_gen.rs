@@ -319,15 +319,24 @@ mod host {
             fn multi_test_a(&self, a: i32);
             fn multi_test_b(&self, b: bool);
         }
-        pub fn add_to_linker<U: Imports>(linker: &mut wasmtime::Linker<U>) {
-            fn get_memory<U: Imports>(
+        pub mod extra_interfaces {
+            pub trait extra_wasm {
+                fn extra_a(&self, a: i32);
+                fn extra_b(&self, b: bool);
+                fn extra_option_i32(&self, option_i32: Option<i32>);
+            }
+        }
+        pub fn add_to_linker<U: Imports + extra_interfaces::extra_wasm>(
+            linker: &mut wasmtime::Linker<U>,
+        ) {
+            fn get_memory<U: Imports + extra_interfaces::extra_wasm>(
                 caller: &mut wasmtime::Caller<U>,
             ) -> wasmtime::Memory {
                 let Some(wasmtime::Extern::Memory(memory)) = caller.get_export("memory")
                 else { panic!("Failed to get memory export") };
                 memory
             }
-            fn read_big_call_args<U: Imports>(
+            fn read_big_call_args<U: Imports + extra_interfaces::extra_wasm>(
                 caller: &mut wasmtime::Caller<U>,
             ) -> &'static std::thread::LocalKey<std::cell::RefCell<Vec<u8>>> {
                 thread_local! {
@@ -344,7 +353,7 @@ mod host {
                 &ARGS
             }
             fn get_memory_and<
-                U: Imports,
+                U: Imports + extra_interfaces::extra_wasm,
                 Params: wasmtime::WasmParams,
                 Results: wasmtime::WasmResults,
             >(
@@ -357,7 +366,7 @@ mod host {
                 };
                 (memory, func.typed::<Params, Results>(caller).unwrap())
             }
-            fn read_to_buffer<U: Imports>(
+            fn read_to_buffer<U: Imports + extra_interfaces::extra_wasm>(
                 mut caller: &mut wasmtime::Caller<U>,
                 fat_ptr: super::__shared::FatPtr,
                 call_free: bool,
@@ -380,21 +389,24 @@ mod host {
                 data.set_free(free);
                 Ok(buffer)
             }
-            fn read_from_guest<U: Imports, T: serde::de::DeserializeOwned>(
+            fn read_from_guest<
+                U: Imports + extra_interfaces::extra_wasm,
+                T: serde::de::DeserializeOwned,
+            >(
                 caller: &mut wasmtime::Caller<U>,
                 fat_ptr: super::__shared::FatPtr,
             ) -> wasmtime::Result<T> {
                 let buffer = read_to_buffer(caller, fat_ptr, true)?;
                 Ok(bincode::deserialize(&buffer)?)
             }
-            fn read_string_ref_from_guest<U: Imports>(
+            fn read_string_ref_from_guest<U: Imports + extra_interfaces::extra_wasm>(
                 caller: &mut wasmtime::Caller<U>,
                 fat_ptr: super::__shared::FatPtr,
             ) -> wasmtime::Result<String> {
                 let buffer = read_to_buffer(caller, fat_ptr, false)?;
                 Ok(String::from_utf8(buffer)?)
             }
-            fn clone_bytes_to_guest<U: Imports>(
+            fn clone_bytes_to_guest<U: Imports + extra_interfaces::extra_wasm>(
                 mut caller: &mut wasmtime::Caller<U>,
                 bytes: &[u8],
             ) -> wasmtime::Result<super::__shared::FatPtr> {
@@ -415,14 +427,17 @@ mod host {
                 data.set_alloc(alloc);
                 Ok(super::__shared::to_fat_ptr(ptr, size))
             }
-            fn send_to_guest<U: Imports, T: ?Sized + serde::Serialize>(
+            fn send_to_guest<
+                U: Imports + extra_interfaces::extra_wasm,
+                T: ?Sized + serde::Serialize,
+            >(
                 caller: &mut wasmtime::Caller<U>,
                 data: &T,
             ) -> wasmtime::Result<super::__shared::FatPtr> {
                 let bytes = bincode::serialize(&data)?;
                 clone_bytes_to_guest(caller, &bytes)
             }
-            fn send_string_to_guest<U: Imports>(
+            fn send_string_to_guest<U: Imports + extra_interfaces::extra_wasm>(
                 caller: &mut wasmtime::Caller<U>,
                 string: String,
             ) -> wasmtime::Result<super::__shared::FatPtr> {
@@ -474,10 +489,78 @@ mod host {
                     },
                 )
                 .unwrap();
+            linker
+                .func_wrap(
+                    "__custom_imports",
+                    stringify!(extra),
+                    #[allow(unused_mut)]
+                    |mut caller: wasmtime::Caller<U>, func_index: u32| -> u64 {
+                        #[allow(clippy::unnecessary_cast)]
+                        {
+                            match func_index {
+                                0u32 => {
+                                    let (a,) = read_big_call_args(&mut caller)
+                                        .with_borrow(|big_call_args| {
+                                            (
+                                                <i32 as super::__shared::NumAsU64Arr>::from_bytes(
+                                                    big_call_args[0usize..8usize].try_into().unwrap(),
+                                                ) as i32,
+                                            )
+                                        });
+                                    #[allow(unused_variables, clippy::let_unit_value)]
+                                    let call_return = caller.data().extra_a(a);
+                                    0
+                                }
+                                1u32 => {
+                                    let (b,) = read_big_call_args(&mut caller)
+                                        .with_borrow(|big_call_args| {
+                                            (
+                                                <i32 as super::__shared::NumAsU64Arr>::from_bytes(
+                                                    big_call_args[0usize..8usize].try_into().unwrap(),
+                                                ) == 1,
+                                            )
+                                        });
+                                    #[allow(unused_variables, clippy::let_unit_value)]
+                                    let call_return = caller.data().extra_b(b);
+                                    0
+                                }
+                                2u32 => {
+                                    let (option_i32,) = read_big_call_args(&mut caller)
+                                        .with_borrow(|big_call_args| {
+                                            (
+                                                read_from_guest(
+                                                        &mut caller,
+                                                        <super::__shared::FatPtr as super::__shared::NumAsU64Arr>::from_bytes(
+                                                            big_call_args[0usize..8usize].try_into().unwrap(),
+                                                        ),
+                                                    )
+                                                    .unwrap(),
+                                            )
+                                        });
+                                    #[allow(unused_variables, clippy::let_unit_value)]
+                                    let call_return = caller
+                                        .data()
+                                        .extra_option_i32(option_i32);
+                                    0
+                                }
+                                _ => {
+                                    panic!(
+                                        "Unknown multi func index: {func_index} in func: {}",
+                                        stringify!(extra)
+                                    );
+                                }
+                            }
+                        }
+                    },
+                )
+                .unwrap();
         }
     }
     const _: &str = include_str!(
         r#"C:\\dev\\rust\\wasmgen\\test-host\\../wasm.interface"#
+    );
+    const _: &str = include_str!(
+        r#"C:\\dev\\rust\\wasmgen\\test-host\\../extra_wasm.interface"#
     );
 }
 pub use host::*;

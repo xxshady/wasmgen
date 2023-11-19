@@ -30,9 +30,11 @@ pub fn __generate_bindings(code: TokenStream, side: &str, out_file: &str) {
 
 #[macro_export]
 macro_rules! generate_bindings {
-    ($side:ident, $interface_file:literal, $out_file:literal) => {
+    ($side:ident, $out_file:literal, @interfaces main: $interface_file:literal extra: [ $( $extra_interface_file:literal, )* ]) => {
         $crate::__generate_bindings(
-            $crate::wasm_codegen::$side($interface_file),
+            $crate::wasm_codegen::$side($interface_file, &[
+                $( $extra_interface_file, )*
+            ]),
             stringify!($side),
             $out_file,
         );

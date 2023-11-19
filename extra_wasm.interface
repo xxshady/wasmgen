@@ -1,0 +1,14 @@
+types {
+    type: Option<i32> kind: FatPtr repr: FatPtr can_be_param: true
+}
+
+imports {
+    extra[
+        a(a: i32)
+        b(b: bool)
+        option_i32(option_i32: Option<i32>)
+    ]
+}
+
+exports {
+}

@@ -1,3 +1,11 @@
 fn main() {
-    build_helper::generate_bindings!(guest, "../wasm.interface", "guest_gen.rs");
+    build_helper::generate_bindings!(
+        guest,
+        "guest_gen.rs",
+        @interfaces
+        main: "../wasm.interface"
+        extra: [
+            "../extra_wasm.interface",
+        ]
+    );
 }

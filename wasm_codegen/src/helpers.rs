@@ -1,23 +1,32 @@
 use proc_macro2::TokenStream;
 use std::path::PathBuf;
 
-use crate::{parser, value_type::ValueType};
+use crate::{
+    parser,
+    value_type::{ValueType, ValueTypePool},
+};
 
-pub(crate) fn parse_interface_file(interface_file: &str) -> (parser::Interface, String) {
+pub(crate) fn parse_interface_file(
+    interface_file: &str,
+    mut value_types: &mut ValueTypePool,
+) -> (parser::Interface, String) {
     let manifest_dir = PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap());
     let interface_file = manifest_dir.join(interface_file);
     let interface_file = interface_file.to_string_lossy().to_string();
+
     (
-        parser::read_and_parse_interface(&interface_file),
+        parser::read_and_parse_interface(&interface_file, &mut value_types),
         interface_file,
     )
 }
 
-pub(crate) fn build_code(code: TokenStream, interface_file: String) -> TokenStream {
+pub(crate) fn build_code(code: TokenStream, interface_files: Vec<String>) -> TokenStream {
     let mut code = code.to_string();
 
-    // this is needed for rustc to rebuild source code if interface file changed
-    code += &format!("const _: &str = include_str!(r#{interface_file:?}#);\n\n");
+    for file in interface_files {
+        // this is needed for rustc to rebuild source code if interface file changed
+        code += &format!("const _: &str = include_str!(r#{file:?}#);\n\n");
+    }
 
     code.parse().unwrap()
 }
