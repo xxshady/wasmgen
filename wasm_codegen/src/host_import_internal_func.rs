@@ -7,4 +7,5 @@ pub(crate) struct InternalFuncImpl {
     pub(crate) params_deserialization: TokenStream,
     pub(crate) ret: TokenStream,
     pub(crate) ret_serialization: TokenStream,
+    pub(crate) extra_interface_name: TokenStream,
 }

@@ -5,15 +5,38 @@ use wasmtime_wasi::{WasiCtx, WasiCtxBuilder};
 
 mod host_gen;
 
+struct ExtraWasm;
+
+impl host_gen::imports::extra_interfaces::extra_wasm for ExtraWasm {
+    fn extra_a(&self, a: i32) {
+        println!("extra_a {a}");
+    }
+
+    fn extra_b(&self, b: bool) {
+        println!("extra_b {b}");
+    }
+
+    fn extra_option_i32(&self, option_i32: Option<i32>) {
+        println!("extra_option_i32 {option_i32:?}");
+    }
+}
+
 struct State {
     wasi: WasiCtx,
     memory: Option<wasmtime::Memory>,
     free: Option<wasmtime::TypedFunc<host_gen::FatPtr, ()>>,
     alloc: Option<wasmtime::TypedFunc<host_gen::Size, host_gen::Ptr>>,
     big_call_ptr: host_gen::Ptr,
+    extra_wasm: ExtraWasm,
 }
 
 impl host_gen::imports::Imports for State {
+    type ExtraInterface_extra_wasm = ExtraWasm;
+
+    fn get_extra_wasm(&self) -> &Self::ExtraInterface_extra_wasm {
+        &self.extra_wasm
+    }
+
     fn get_big_call_ptr(&self) -> u32 {
         self.big_call_ptr
     }
@@ -111,20 +134,6 @@ impl host_gen::imports::Imports for State {
     }
 }
 
-impl host_gen::imports::extra_interfaces::extra_wasm for State {
-    fn extra_a(&self, a: i32) {
-        println!("extra_a {a}");
-    }
-
-    fn extra_b(&self, b: bool) {
-        println!("extra_b {b}");
-    }
-
-    fn extra_option_i32(&self, option_i32: Option<i32>) {
-        println!("extra_option_i32 {option_i32:?}");
-    }
-}
-
 fn main() -> wasmtime::Result<()> {
     std::env::set_var("RUST_BACKTRACE", "1");
 
@@ -151,6 +160,7 @@ fn main() -> wasmtime::Result<()> {
             free: None,
             alloc: None,
             big_call_ptr: 0,
+            extra_wasm: ExtraWasm,
         },
     );
 

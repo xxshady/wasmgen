@@ -309,6 +309,7 @@ mod host {
     );
     pub mod imports {
         pub trait Imports {
+            type ExtraInterface_extra_wasm: extra_interfaces::extra_wasm;
             fn get_memory(&self) -> Option<wasmtime::Memory>;
             fn set_memory(&mut self, memory: wasmtime::Memory);
             fn get_free(&self) -> Option<super::FreeFunc>;
@@ -316,27 +317,27 @@ mod host {
             fn get_alloc(&self) -> Option<super::AllocFunc>;
             fn set_alloc(&mut self, alloc: super::AllocFunc);
             fn get_big_call_ptr(&self) -> super::Ptr;
+            fn get_extra_wasm(&self) -> &Self::ExtraInterface_extra_wasm;
             fn multi_test_a(&self, a: i32);
             fn multi_test_b(&self, b: bool);
         }
         pub mod extra_interfaces {
-            pub trait extra_wasm {
+            pub trait extra_wasm: Sized {
                 fn extra_a(&self, a: i32);
                 fn extra_b(&self, b: bool);
                 fn extra_option_i32(&self, option_i32: Option<i32>);
             }
         }
-        pub fn add_to_linker<U: Imports + extra_interfaces::extra_wasm>(
-            linker: &mut wasmtime::Linker<U>,
-        ) {
-            fn get_memory<U: Imports + extra_interfaces::extra_wasm>(
+        pub fn add_to_linker<U: Imports>(linker: &mut wasmtime::Linker<U>) {
+            use extra_interfaces::*;
+            fn get_memory<U: Imports>(
                 caller: &mut wasmtime::Caller<U>,
             ) -> wasmtime::Memory {
                 let Some(wasmtime::Extern::Memory(memory)) = caller.get_export("memory")
                 else { panic!("Failed to get memory export") };
                 memory
             }
-            fn read_big_call_args<U: Imports + extra_interfaces::extra_wasm>(
+            fn read_big_call_args<U: Imports>(
                 caller: &mut wasmtime::Caller<U>,
             ) -> &'static std::thread::LocalKey<std::cell::RefCell<Vec<u8>>> {
                 thread_local! {
@@ -353,7 +354,7 @@ mod host {
                 &ARGS
             }
             fn get_memory_and<
-                U: Imports + extra_interfaces::extra_wasm,
+                U: Imports,
                 Params: wasmtime::WasmParams,
                 Results: wasmtime::WasmResults,
             >(
@@ -366,7 +367,7 @@ mod host {
                 };
                 (memory, func.typed::<Params, Results>(caller).unwrap())
             }
-            fn read_to_buffer<U: Imports + extra_interfaces::extra_wasm>(
+            fn read_to_buffer<U: Imports>(
                 mut caller: &mut wasmtime::Caller<U>,
                 fat_ptr: super::__shared::FatPtr,
                 call_free: bool,
@@ -389,24 +390,21 @@ mod host {
                 data.set_free(free);
                 Ok(buffer)
             }
-            fn read_from_guest<
-                U: Imports + extra_interfaces::extra_wasm,
-                T: serde::de::DeserializeOwned,
-            >(
+            fn read_from_guest<U: Imports, T: serde::de::DeserializeOwned>(
                 caller: &mut wasmtime::Caller<U>,
                 fat_ptr: super::__shared::FatPtr,
             ) -> wasmtime::Result<T> {
                 let buffer = read_to_buffer(caller, fat_ptr, true)?;
                 Ok(bincode::deserialize(&buffer)?)
             }
-            fn read_string_ref_from_guest<U: Imports + extra_interfaces::extra_wasm>(
+            fn read_string_ref_from_guest<U: Imports>(
                 caller: &mut wasmtime::Caller<U>,
                 fat_ptr: super::__shared::FatPtr,
             ) -> wasmtime::Result<String> {
                 let buffer = read_to_buffer(caller, fat_ptr, false)?;
                 Ok(String::from_utf8(buffer)?)
             }
-            fn clone_bytes_to_guest<U: Imports + extra_interfaces::extra_wasm>(
+            fn clone_bytes_to_guest<U: Imports>(
                 mut caller: &mut wasmtime::Caller<U>,
                 bytes: &[u8],
             ) -> wasmtime::Result<super::__shared::FatPtr> {
@@ -427,17 +425,14 @@ mod host {
                 data.set_alloc(alloc);
                 Ok(super::__shared::to_fat_ptr(ptr, size))
             }
-            fn send_to_guest<
-                U: Imports + extra_interfaces::extra_wasm,
-                T: ?Sized + serde::Serialize,
-            >(
+            fn send_to_guest<U: Imports, T: ?Sized + serde::Serialize>(
                 caller: &mut wasmtime::Caller<U>,
                 data: &T,
             ) -> wasmtime::Result<super::__shared::FatPtr> {
                 let bytes = bincode::serialize(&data)?;
                 clone_bytes_to_guest(caller, &bytes)
             }
-            fn send_string_to_guest<U: Imports + extra_interfaces::extra_wasm>(
+            fn send_string_to_guest<U: Imports>(
                 caller: &mut wasmtime::Caller<U>,
                 string: String,
             ) -> wasmtime::Result<super::__shared::FatPtr> {
@@ -508,7 +503,7 @@ mod host {
                                             )
                                         });
                                     #[allow(unused_variables, clippy::let_unit_value)]
-                                    let call_return = caller.data().extra_a(a);
+                                    let call_return = caller.data().get_extra_wasm().extra_a(a);
                                     0
                                 }
                                 1u32 => {
@@ -521,7 +516,7 @@ mod host {
                                             )
                                         });
                                     #[allow(unused_variables, clippy::let_unit_value)]
-                                    let call_return = caller.data().extra_b(b);
+                                    let call_return = caller.data().get_extra_wasm().extra_b(b);
                                     0
                                 }
                                 2u32 => {
@@ -540,6 +535,7 @@ mod host {
                                     #[allow(unused_variables, clippy::let_unit_value)]
                                     let call_return = caller
                                         .data()
+                                        .get_extra_wasm()
                                         .extra_option_i32(option_i32);
                                     0
                                 }
