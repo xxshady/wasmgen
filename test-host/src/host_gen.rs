@@ -1,6 +1,5 @@
-
-    // AUTO-GENERATED
-    // All manual changes will be overwritten
+// AUTO-GENERATED
+// All manual changes will be overwritten
 
 mod host {
     mod __shared {
@@ -23,10 +22,11 @@ mod host {
             fn into_bytes(self) -> U64AsBytes;
         }
         macro_rules! copy_to_full_arr {
-            ($part:expr) => {
-                { let mut bytes = [0u8; U64_SIZE]; bytes[.. $part .len()]
-                .clone_from_slice(& $part); bytes }
-            };
+            ($part:expr) => {{
+                let mut bytes = [0u8; U64_SIZE];
+                bytes[..$part.len()].clone_from_slice(&$part);
+                bytes
+            }};
         }
         impl NumAsU64Arr for f32 {
             fn from_bytes(bytes: U64AsBytes) -> Self {
@@ -115,14 +115,8 @@ mod host {
     pub mod exports {
         pub struct Exports<S> {
             prop_return_string_to_host: wasmtime::TypedFunc<(), super::__shared::FatPtr>,
-            prop_give_string_to_guest: wasmtime::TypedFunc<
-                (super::__shared::FatPtr,),
-                (),
-            >,
-            prop_give_custom_to_guest: wasmtime::TypedFunc<
-                (super::__shared::FatPtr,),
-                (),
-            >,
+            prop_give_string_to_guest: wasmtime::TypedFunc<(super::__shared::FatPtr,), ()>,
+            prop_give_custom_to_guest: wasmtime::TypedFunc<(super::__shared::FatPtr,), ()>,
             prop_option_bool: wasmtime::TypedFunc<(super::__shared::FatPtr,), ()>,
             memory: wasmtime::Memory,
             store: wasmtime::Store<S>,
@@ -157,31 +151,25 @@ mod host {
                         )
                         .unwrap(),
                     prop_option_bool: instance
-                        .get_typed_func(
-                            &mut store,
-                            stringify!(__custom_exports_option_bool),
-                        )
+                        .get_typed_func(&mut store, stringify!(__custom_exports_option_bool))
                         .unwrap(),
                     memory: instance.get_memory(&mut store, "memory").unwrap(),
                     alloc: instance
                         .get_typed_func(&mut store, "__custom_alloc")
                         .unwrap(),
-                    free: instance.get_typed_func(&mut store, "__custom_free").unwrap(),
+                    free: instance
+                        .get_typed_func(&mut store, "__custom_free")
+                        .unwrap(),
                     pre_main: instance.get_typed_func(&mut store, "__pre_main").unwrap(),
                     main: instance.get_typed_func(&mut store, "main").unwrap(),
                     store,
                 };
                 {
                     let (ptr, size) = exports
-                        .alloc_bytes(
-                            &[1_u8; super::__shared::BYTES_TO_STORE_U64_32_TIMES],
-                        )
+                        .alloc_bytes(&[1_u8; super::__shared::BYTES_TO_STORE_U64_32_TIMES])
                         .unwrap();
                     *mutate_big_call_ptr(exports.store.data_mut()) = ptr;
-                    let init_big_call: wasmtime::TypedFunc<
-                        (super::__shared::Ptr,),
-                        (),
-                    > = instance
+                    let init_big_call: wasmtime::TypedFunc<(super::__shared::Ptr,), ()> = instance
                         .get_typed_func(&mut exports.store, "__init_big_call")
                         .unwrap();
                     init_big_call.call(&mut exports.store, (ptr,)).unwrap();
@@ -254,16 +242,11 @@ mod host {
                 #[allow(clippy::unnecessary_cast)]
                 {
                     #[allow(unused_variables, clippy::let_unit_value)]
-                    let call_return = self
-                        .prop_return_string_to_host
-                        .call(&mut self.store, ())?;
+                    let call_return = self.prop_return_string_to_host.call(&mut self.store, ())?;
                     self.read_string_from_guest(call_return)
                 }
             }
-            pub fn call_give_string_to_guest(
-                &mut self,
-                string: &String,
-            ) -> wasmtime::Result<()> {
+            pub fn call_give_string_to_guest(&mut self, string: &String) -> wasmtime::Result<()> {
                 #[allow(clippy::unnecessary_cast)]
                 {
                     let string = self.send_str_to_guest(&string)?;
@@ -288,10 +271,7 @@ mod host {
                     Ok(())
                 }
             }
-            pub fn call_option_bool(
-                &mut self,
-                option_bool: Option<bool>,
-            ) -> wasmtime::Result<()> {
+            pub fn call_option_bool(&mut self, option_bool: Option<bool>) -> wasmtime::Result<()> {
                 #[allow(clippy::unnecessary_cast)]
                 {
                     let option_bool = self.send_to_guest(&option_bool)?;
@@ -304,140 +284,17 @@ mod host {
             }
         }
     }
-    const _: &str = include_str!(
-        r#"C:\\dev\\rust\\wasmgen\\test-host\\../wasm.interface"#
-    );
     pub mod imports {
-        pub trait Imports {
-            type ExtraInterface_extra_wasm: extra_interfaces::extra_wasm;
-            fn get_memory(&self) -> Option<wasmtime::Memory>;
-            fn set_memory(&mut self, memory: wasmtime::Memory);
-            fn get_free(&self) -> Option<super::FreeFunc>;
-            fn set_free(&mut self, free: super::FreeFunc);
-            fn get_alloc(&self) -> Option<super::AllocFunc>;
-            fn set_alloc(&mut self, alloc: super::AllocFunc);
-            fn get_big_call_ptr(&self) -> super::Ptr;
-            fn get_extra_wasm(&self) -> &Self::ExtraInterface_extra_wasm;
-            fn multi_test_a(&self, a: i32);
-            fn multi_test_b(&self, b: bool);
-        }
-        pub mod extra_interfaces {
-            pub trait extra_wasm: Sized {
-                fn extra_a(&self, a: i32);
-                fn extra_b(&self, b: bool);
-                fn extra_option_i32(&self, option_i32: Option<i32>);
-            }
-        }
-        pub fn add_to_linker<U: Imports>(linker: &mut wasmtime::Linker<U>) {
-            use extra_interfaces::*;
-            fn get_memory<U: Imports>(
-                caller: &mut wasmtime::Caller<U>,
-            ) -> wasmtime::Memory {
-                let Some(wasmtime::Extern::Memory(memory)) = caller.get_export("memory")
-                else { panic!("Failed to get memory export") };
-                memory
-            }
-            fn read_big_call_args<U: Imports>(
-                caller: &mut wasmtime::Caller<U>,
-            ) -> &'static std::thread::LocalKey<std::cell::RefCell<Vec<u8>>> {
-                thread_local! {
-                    static ARGS : std::cell::RefCell < Vec < u8 >> =
-                    std::cell::RefCell::new(vec![0u8;
-                    super::__shared::BYTES_TO_STORE_U64_32_TIMES]);
-                }
-                let big_call_ptr = caller.data().get_big_call_ptr();
-                ARGS.with_borrow_mut(|args| {
-                    get_memory(caller)
-                        .read(caller, big_call_ptr as usize, args)
-                        .unwrap();
-                });
-                &ARGS
-            }
-            fn get_memory_and<
-                U: Imports,
-                Params: wasmtime::WasmParams,
-                Results: wasmtime::WasmResults,
-            >(
-                caller: &mut wasmtime::Caller<U>,
-                and: &'static str,
-            ) -> (wasmtime::Memory, wasmtime::TypedFunc<Params, Results>) {
-                let memory = get_memory(caller);
-                let Some(wasmtime::Extern::Func(func)) = caller.get_export(and) else {
-                    panic!("Failed to get {and:?} export")
-                };
-                (memory, func.typed::<Params, Results>(caller).unwrap())
-            }
-            fn read_to_buffer<U: Imports>(
-                mut caller: &mut wasmtime::Caller<U>,
-                fat_ptr: super::__shared::FatPtr,
-                call_free: bool,
-            ) -> wasmtime::Result<Vec<u8>> {
-                let memory = caller.data().get_memory();
-                let free = caller.data().get_free();
-                let (memory, free) = if free.is_some() {
-                    (memory.unwrap(), free.unwrap())
-                } else {
-                    get_memory_and(caller, "__custom_free")
-                };
-                let (ptr, size) = super::__shared::from_fat_ptr(fat_ptr);
-                let mut buffer = vec![0; size as usize];
-                memory.read(&caller, ptr as usize, &mut buffer)?;
-                if call_free {
-                    free.call(&mut caller, fat_ptr)?;
-                }
-                let data = caller.data_mut();
-                data.set_memory(memory);
-                data.set_free(free);
-                Ok(buffer)
-            }
-            fn read_from_guest<U: Imports, T: serde::de::DeserializeOwned>(
-                caller: &mut wasmtime::Caller<U>,
-                fat_ptr: super::__shared::FatPtr,
-            ) -> wasmtime::Result<T> {
-                let buffer = read_to_buffer(caller, fat_ptr, true)?;
-                Ok(bincode::deserialize(&buffer)?)
-            }
-            fn read_string_ref_from_guest<U: Imports>(
-                caller: &mut wasmtime::Caller<U>,
-                fat_ptr: super::__shared::FatPtr,
-            ) -> wasmtime::Result<String> {
-                let buffer = read_to_buffer(caller, fat_ptr, false)?;
-                Ok(String::from_utf8(buffer)?)
-            }
-            fn clone_bytes_to_guest<U: Imports>(
-                mut caller: &mut wasmtime::Caller<U>,
-                bytes: &[u8],
-            ) -> wasmtime::Result<super::__shared::FatPtr> {
-                let (memory, alloc) = {
-                    let data = caller.data();
-                    (data.get_memory(), data.get_alloc())
-                };
-                let (memory, alloc) = if alloc.is_some() {
-                    (memory.unwrap(), alloc.unwrap())
-                } else {
-                    get_memory_and(caller, "__custom_alloc")
-                };
-                let size = bytes.len().try_into()?;
-                let ptr = alloc.call(&mut caller, size)?;
-                memory.write(&mut caller, ptr as usize, bytes)?;
-                let data = caller.data_mut();
-                data.set_memory(memory);
-                data.set_alloc(alloc);
-                Ok(super::__shared::to_fat_ptr(ptr, size))
-            }
-            fn send_to_guest<U: Imports, T: ?Sized + serde::Serialize>(
-                caller: &mut wasmtime::Caller<U>,
-                data: &T,
-            ) -> wasmtime::Result<super::__shared::FatPtr> {
-                let bytes = bincode::serialize(&data)?;
-                clone_bytes_to_guest(caller, &bytes)
-            }
-            fn send_string_to_guest<U: Imports>(
-                caller: &mut wasmtime::Caller<U>,
-                string: String,
-            ) -> wasmtime::Result<super::__shared::FatPtr> {
-                clone_bytes_to_guest(caller, string.as_bytes())
-            }
+        use crate::{
+            host_extra::extra_linker_func,
+            host_shared::{self, GetBigCallPtr},
+        };
+
+        pub fn add_to_linker<
+            U: host_shared::Imports + host_shared::GetExtra + host_shared::GetBigCallPtr,
+        >(
+            linker: &mut wasmtime::Linker<U>,
+        ) {
             linker
                 .func_wrap(
                     "__custom_imports",
@@ -448,26 +305,22 @@ mod host {
                         {
                             match func_index {
                                 0u32 => {
-                                    let (a,) = read_big_call_args(&mut caller)
+                                    let (a,) = host_shared::read_big_call_args(&mut caller)
                                         .with_borrow(|big_call_args| {
-                                            (
-                                                <i32 as super::__shared::NumAsU64Arr>::from_bytes(
-                                                    big_call_args[0usize..8usize].try_into().unwrap(),
-                                                ) as i32,
-                                            )
+                                            (<i32 as super::__shared::NumAsU64Arr>::from_bytes(
+                                                big_call_args[0usize..8usize].try_into().unwrap(),
+                                            ) as i32,)
                                         });
                                     #[allow(unused_variables, clippy::let_unit_value)]
                                     let call_return = caller.data().multi_test_a(a);
                                     0
                                 }
                                 1u32 => {
-                                    let (b,) = read_big_call_args(&mut caller)
+                                    let (b,) = host_shared::read_big_call_args(&mut caller)
                                         .with_borrow(|big_call_args| {
-                                            (
-                                                <i32 as super::__shared::NumAsU64Arr>::from_bytes(
-                                                    big_call_args[0usize..8usize].try_into().unwrap(),
-                                                ) == 1,
-                                            )
+                                            (<i32 as super::__shared::NumAsU64Arr>::from_bytes(
+                                                big_call_args[0usize..8usize].try_into().unwrap(),
+                                            ) == 1,)
                                         });
                                     #[allow(unused_variables, clippy::let_unit_value)]
                                     let call_return = caller.data().multi_test_b(b);
@@ -484,79 +337,8 @@ mod host {
                     },
                 )
                 .unwrap();
-            linker
-                .func_wrap(
-                    "__custom_imports",
-                    stringify!(extra),
-                    #[allow(unused_mut)]
-                    |mut caller: wasmtime::Caller<U>, func_index: u32| -> u64 {
-                        #[allow(clippy::unnecessary_cast)]
-                        {
-                            match func_index {
-                                0u32 => {
-                                    let (a,) = read_big_call_args(&mut caller)
-                                        .with_borrow(|big_call_args| {
-                                            (
-                                                <i32 as super::__shared::NumAsU64Arr>::from_bytes(
-                                                    big_call_args[0usize..8usize].try_into().unwrap(),
-                                                ) as i32,
-                                            )
-                                        });
-                                    #[allow(unused_variables, clippy::let_unit_value)]
-                                    let call_return = caller.data().get_extra_wasm().extra_a(a);
-                                    0
-                                }
-                                1u32 => {
-                                    let (b,) = read_big_call_args(&mut caller)
-                                        .with_borrow(|big_call_args| {
-                                            (
-                                                <i32 as super::__shared::NumAsU64Arr>::from_bytes(
-                                                    big_call_args[0usize..8usize].try_into().unwrap(),
-                                                ) == 1,
-                                            )
-                                        });
-                                    #[allow(unused_variables, clippy::let_unit_value)]
-                                    let call_return = caller.data().get_extra_wasm().extra_b(b);
-                                    0
-                                }
-                                2u32 => {
-                                    let (option_i32,) = read_big_call_args(&mut caller)
-                                        .with_borrow(|big_call_args| {
-                                            (
-                                                read_from_guest(
-                                                        &mut caller,
-                                                        <super::__shared::FatPtr as super::__shared::NumAsU64Arr>::from_bytes(
-                                                            big_call_args[0usize..8usize].try_into().unwrap(),
-                                                        ),
-                                                    )
-                                                    .unwrap(),
-                                            )
-                                        });
-                                    #[allow(unused_variables, clippy::let_unit_value)]
-                                    let call_return = caller
-                                        .data()
-                                        .get_extra_wasm()
-                                        .extra_option_i32(option_i32);
-                                    0
-                                }
-                                _ => {
-                                    panic!(
-                                        "Unknown multi func index: {func_index} in func: {}",
-                                        stringify!(extra)
-                                    );
-                                }
-                            }
-                        }
-                    },
-                )
-                .unwrap();
+            extra_linker_func(linker);
         }
     }
-    const _: &str = include_str!(
-        r#"C:\\dev\\rust\\wasmgen\\test-host\\../wasm.interface"#
-    );
-    const _: &str = include_str!(
-        r#"C:\\dev\\rust\\wasmgen\\test-host\\../extra_wasm.interface"#
-    );
 }
 pub use host::*;

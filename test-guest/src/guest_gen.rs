@@ -293,12 +293,6 @@ mod guest {
             }
         }
     }
-    const _: &str = include_str!(
-        r#"C:\\dev\\rust\\wasmgen\\test-guest\\../wasm.interface"#
-    );
-    const _: &str = include_str!(
-        r#"C:\\dev\\rust\\wasmgen\\test-guest\\../extra_wasm.interface"#
-    );
     pub mod exports {
         pub trait Exports {
             fn return_string_to_host() -> String;
@@ -350,8 +344,5 @@ mod guest {
             }
         }
     }
-    const _: &str = include_str!(
-        r#"C:\\dev\\rust\\wasmgen\\test-guest\\../wasm.interface"#
-    );
 }
 pub use guest::*;

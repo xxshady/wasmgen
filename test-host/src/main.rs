@@ -3,11 +3,13 @@ use wasmtime::*;
 
 use wasmtime_wasi::{WasiCtx, WasiCtxBuilder};
 
+mod host_extra;
 mod host_gen;
+mod host_shared;
 
 struct ExtraWasm;
 
-impl host_gen::imports::extra_interfaces::extra_wasm for ExtraWasm {
+impl host_shared::extra_interfaces::extra_wasm for ExtraWasm {
     fn extra_a(&self, a: i32) {
         println!("extra_a {a}");
     }
@@ -30,17 +32,21 @@ struct State {
     extra_wasm: ExtraWasm,
 }
 
-impl host_gen::imports::Imports for State {
+impl host_shared::GetExtra for State {
     type ExtraInterface_extra_wasm = ExtraWasm;
 
     fn get_extra_wasm(&self) -> &Self::ExtraInterface_extra_wasm {
         &self.extra_wasm
     }
+}
 
+impl host_shared::GetBigCallPtr for State {
     fn get_big_call_ptr(&self) -> u32 {
         self.big_call_ptr
     }
+}
 
+impl host_shared::Imports for State {
     fn get_memory(&self) -> Option<wasmtime::Memory> {
         self.memory
     }

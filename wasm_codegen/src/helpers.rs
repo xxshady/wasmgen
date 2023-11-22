@@ -23,10 +23,10 @@ pub(crate) fn parse_interface_file(
 pub(crate) fn build_code(code: TokenStream, interface_files: Vec<String>) -> TokenStream {
     let mut code = code.to_string();
 
-    for file in interface_files {
-        // this is needed for rustc to rebuild source code if interface file changed
-        code += &format!("const _: &str = include_str!(r#{file:?}#);\n\n");
-    }
+    // for file in interface_files {
+    //     // this is needed for rustc to rebuild source code if interface file changed
+    //     code += &format!("const _: &str = include_str!(r#{file:?}#);\n\n");
+    // }
 
     code.parse().unwrap()
 }
