@@ -312,8 +312,9 @@ impl Parser<'_> {
                                 return_type_parsing_arrow = true;
                             }
                             '>' => {
-                                assert!(return_type_parsing_arrow);
-                                return_type_parsing_arrow = false;
+                                if return_type_parsing_arrow {
+                                    return_type_parsing_arrow = false;
+                                }
                             }
                             '\n' => {
                                 return_type_parsing = false;

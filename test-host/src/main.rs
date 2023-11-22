@@ -1,9 +1,13 @@
+use std::{cell::RefCell, collections::HashMap};
+
+use memory_buffer::MemoryBufferManager;
 use shared::Custom;
 use wasmtime::*;
 
 use wasmtime_wasi::{WasiCtx, WasiCtxBuilder};
 
 mod host_gen;
+mod memory_buffer;
 
 struct ExtraWasm;
 
@@ -28,6 +32,7 @@ struct State {
     alloc: Option<wasmtime::TypedFunc<host_gen::Size, host_gen::Ptr>>,
     big_call_ptr: host_gen::Ptr,
     extra_wasm: ExtraWasm,
+    memory_buffers: RefCell<MemoryBufferManager>,
 }
 
 impl host_gen::imports::Imports for State {
@@ -132,6 +137,25 @@ impl host_gen::imports::Imports for State {
     fn multi_test_b(&self, b: bool) {
         println!("multi_test_b b: {b}");
     }
+
+    fn alloc_memory_buffer(&self, size: u16) -> u8 {
+        self.memory_buffers.borrow_mut().alloc(size)
+    }
+
+    fn dealloc_memory_buffer(&self, id: u8) {
+        self.memory_buffers.borrow_mut().dealloc(id);
+    }
+
+    fn read_memory_buffer(&self, id: u8) -> Vec<u8> {
+        self.memory_buffers.borrow_mut().read(id)
+    }
+
+    fn random_shit_to_memory_buffer(&self, id: u8) {
+        let ptr = self.memory_buffers.borrow_mut().get_mut_ptr(id);
+        unsafe {
+            *ptr = 123;
+        }
+    }
 }
 
 fn main() -> wasmtime::Result<()> {
@@ -161,6 +185,7 @@ fn main() -> wasmtime::Result<()> {
             alloc: None,
             big_call_ptr: 0,
             extra_wasm: ExtraWasm,
+            memory_buffers: RefCell::new(MemoryBufferManager::new()),
         },
     );
 

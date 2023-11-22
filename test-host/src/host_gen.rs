@@ -320,6 +320,10 @@ mod host {
             fn get_extra_wasm(&self) -> &Self::ExtraInterface_extra_wasm;
             fn multi_test_a(&self, a: i32);
             fn multi_test_b(&self, b: bool);
+            fn alloc_memory_buffer(&self, size: u16) -> u8;
+            fn dealloc_memory_buffer(&self, id: u8);
+            fn random_shit_to_memory_buffer(&self, id: u8);
+            fn read_memory_buffer(&self, id: u8) -> Vec<u8>;
         }
         pub mod extra_interfaces {
             pub trait extra_wasm: Sized {
@@ -480,6 +484,73 @@ mod host {
                                     );
                                 }
                             }
+                        }
+                    },
+                )
+                .unwrap();
+            linker
+                .func_wrap(
+                    "__custom_imports",
+                    stringify!(alloc_memory_buffer),
+                    #[allow(unused_mut)]
+                    |mut caller: wasmtime::Caller<U>, size: u32| -> u32 {
+                        #[allow(clippy::unnecessary_cast)]
+                        {
+                            let size = size as u16;
+                            #[allow(unused_variables, clippy::let_unit_value)]
+                            let call_return = caller.data().alloc_memory_buffer(size);
+                            call_return as u32
+                        }
+                    },
+                )
+                .unwrap();
+            linker
+                .func_wrap(
+                    "__custom_imports",
+                    stringify!(dealloc_memory_buffer),
+                    #[allow(unused_mut)]
+                    |mut caller: wasmtime::Caller<U>, id: u32| {
+                        #[allow(clippy::unnecessary_cast)]
+                        {
+                            let id = id as u8;
+                            #[allow(unused_variables, clippy::let_unit_value)]
+                            let call_return = caller.data().dealloc_memory_buffer(id);
+                        }
+                    },
+                )
+                .unwrap();
+            linker
+                .func_wrap(
+                    "__custom_imports",
+                    stringify!(random_shit_to_memory_buffer),
+                    #[allow(unused_mut)]
+                    |mut caller: wasmtime::Caller<U>, id: u32| {
+                        #[allow(clippy::unnecessary_cast)]
+                        {
+                            let id = id as u8;
+                            #[allow(unused_variables, clippy::let_unit_value)]
+                            let call_return = caller
+                                .data()
+                                .random_shit_to_memory_buffer(id);
+                        }
+                    },
+                )
+                .unwrap();
+            linker
+                .func_wrap(
+                    "__custom_imports",
+                    stringify!(read_memory_buffer),
+                    #[allow(unused_mut)]
+                    |
+                        mut caller: wasmtime::Caller<U>,
+                        id: u32,
+                    | -> super::__shared::FatPtr {
+                        #[allow(clippy::unnecessary_cast)]
+                        {
+                            let id = id as u8;
+                            #[allow(unused_variables, clippy::let_unit_value)]
+                            let call_return = caller.data().read_memory_buffer(id);
+                            send_to_guest(&mut caller, &call_return).unwrap()
                         }
                     },
                 )

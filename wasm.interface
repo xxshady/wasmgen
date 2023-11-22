@@ -1,10 +1,13 @@
 types {
     type: i32 kind: Native repr: I32 can_be_param: true
+    type: u16 kind: Native repr: U32 can_be_param: true
+    type: u8 kind: Native repr: U32 can_be_param: true
     type: bool kind: Bool repr: I32 can_be_param: true
     type: String kind: String repr: FatPtr can_be_param: false
     type: &String de: String kind: String repr: FatPtr can_be_param: true
     type: shared::Custom kind: FatPtr repr: FatPtr can_be_param: true
     type: Option<bool> kind: FatPtr repr: FatPtr can_be_param: true
+    type: Vec<u8> kind: FatPtr repr: FatPtr can_be_param: false
 }
 
 imports {
@@ -12,6 +15,11 @@ imports {
         a(a: i32)
         b(b: bool)
     ]
+
+    alloc_memory_buffer(size: u16) -> u8
+    dealloc_memory_buffer(id: u8)
+    random_shit_to_memory_buffer(id: u8)
+    read_memory_buffer(id: u8) -> Vec<u8>
 }
 
 exports {

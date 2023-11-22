@@ -1,3 +1,4 @@
+use memory_buffer::MemoryBuffer;
 use stats_alloc::{Region, StatsAlloc, INSTRUMENTED_SYSTEM};
 use std::alloc::System;
 
@@ -9,6 +10,7 @@ use std::alloc::System;
 // }
 
 mod guest_gen;
+mod memory_buffer;
 
 impl guest_gen::exports::Exports for guest_gen::exports::ExportsImpl {
     fn give_string_to_guest(string: String) {
@@ -100,9 +102,19 @@ fn main() {
     //     32,
     // );
 
-    guest_gen::imports::multi_test_a(123);
-    guest_gen::imports::multi_test_b(true);
-    guest_gen::imports::extra_a(12345);
-    guest_gen::imports::extra_b(false);
-    guest_gen::imports::extra_option_i32(Some(123029));
+    // guest_gen::imports::multi_test_a(123);
+    // guest_gen::imports::multi_test_b(true);
+    // guest_gen::imports::extra_a(12345);
+    // guest_gen::imports::extra_b(false);
+    // guest_gen::imports::extra_option_i32(Some(123029));
+
+    let b = MemoryBuffer::new(3).unwrap();
+    let b2 = MemoryBuffer::new(3).unwrap();
+    let b = MemoryBuffer::new(3).unwrap();
+    let b = MemoryBuffer::new(3).unwrap();
+
+    guest_gen::imports::random_shit_to_memory_buffer(b2.id);
+    let content = b2.read();
+    println!("content of b2: {content:?}");
+    let b = MemoryBuffer::new(3).unwrap();
 }

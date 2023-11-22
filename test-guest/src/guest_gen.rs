@@ -222,6 +222,64 @@ mod guest {
                 let call_return = unsafe { __custom_imports_multi_test(1u32) };
             }
         }
+        pub fn alloc_memory_buffer(size: u16) -> u8 {
+            #[link(wasm_import_module = "__custom_imports")]
+            extern "C" {
+                #[link_name = stringify!(alloc_memory_buffer)]
+                fn __custom_imports_alloc_memory_buffer(size: u32) -> u32;
+            }
+            #[allow(clippy::unnecessary_cast)]
+            {
+                let size = size as u32;
+                #[allow(unused_variables, clippy::let_unit_value)]
+                let call_return = unsafe { __custom_imports_alloc_memory_buffer(size) };
+                call_return as u8
+            }
+        }
+        pub fn dealloc_memory_buffer(id: u8) {
+            #[link(wasm_import_module = "__custom_imports")]
+            extern "C" {
+                #[link_name = stringify!(dealloc_memory_buffer)]
+                fn __custom_imports_dealloc_memory_buffer(id: u32);
+            }
+            #[allow(clippy::unnecessary_cast)]
+            {
+                let id = id as u32;
+                #[allow(unused_variables, clippy::let_unit_value)]
+                let call_return = unsafe { __custom_imports_dealloc_memory_buffer(id) };
+            }
+        }
+        pub fn random_shit_to_memory_buffer(id: u8) {
+            #[link(wasm_import_module = "__custom_imports")]
+            extern "C" {
+                #[link_name = stringify!(random_shit_to_memory_buffer)]
+                fn __custom_imports_random_shit_to_memory_buffer(id: u32);
+            }
+            #[allow(clippy::unnecessary_cast)]
+            {
+                let id = id as u32;
+                #[allow(unused_variables, clippy::let_unit_value)]
+                let call_return = unsafe {
+                    __custom_imports_random_shit_to_memory_buffer(id)
+                };
+            }
+        }
+        pub fn read_memory_buffer(id: u8) -> Vec<u8> {
+            #[link(wasm_import_module = "__custom_imports")]
+            extern "C" {
+                #[link_name = stringify!(read_memory_buffer)]
+                fn __custom_imports_read_memory_buffer(
+                    id: u32,
+                ) -> super::__shared::FatPtr;
+            }
+            #[allow(clippy::unnecessary_cast)]
+            {
+                let id = id as u32;
+                #[allow(unused_variables, clippy::let_unit_value)]
+                let call_return = unsafe { __custom_imports_read_memory_buffer(id) };
+                super::__internal::read_from_host(call_return)
+            }
+        }
         #[link(wasm_import_module = "__custom_imports")]
         extern "C" {
             #[link_name = "extra"]
