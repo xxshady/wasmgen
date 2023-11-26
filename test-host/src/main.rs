@@ -7,7 +7,7 @@ mod host_gen;
 
 struct ExtraWasm;
 
-impl host_gen::imports::extra_interfaces::extra_wasm for ExtraWasm {
+impl host_gen::imports::extra_interfaces::ExtraWasm for ExtraWasm {
     fn extra_a(&self, a: i32) {
         println!("extra_a {a}");
     }
@@ -31,9 +31,9 @@ struct State {
 }
 
 impl host_gen::imports::Imports for State {
-    type ExtraInterface_extra_wasm = ExtraWasm;
+    type ExtraInterfaceExtraWasm = ExtraWasm;
 
-    fn get_extra_wasm(&self) -> &Self::ExtraInterface_extra_wasm {
+    fn get_extra_wasm(&self) -> &Self::ExtraInterfaceExtraWasm {
         &self.extra_wasm
     }
 

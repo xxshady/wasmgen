@@ -1,4 +1,9 @@
-use crate::{host_import_internal_func::InternalFuncImpl, parser, value_type::ValueKind};
+use crate::{
+    helpers::{ascii_camel_or_pascal_to_snake_case, ascii_snake_to_pascal_case},
+    host_import_internal_func::InternalFuncImpl,
+    parser,
+    value_type::ValueKind,
+};
 use proc_macro2::TokenStream;
 use quote::quote;
 use syn::Ident;
@@ -137,10 +142,9 @@ pub(crate) fn gen_exports(relative_path: &str) -> TokenStream {
                         };
 
                         {
-                            let (ptr, size) = exports
+                            let (ptr, _size) = exports
                                 .alloc_bytes(&[1_u8; super::__shared::BYTES_TO_STORE_U64_32_TIMES])
                                 .unwrap();
-                            // println!("allocated big_call size: {size}");
                             *mutate_big_call_ptr(exports.store.data_mut()) = ptr;
                             let init_big_call: wasmtime::TypedFunc<(super::__shared::Ptr,), ()> = instance
                                 .get_typed_func(&mut exports.store, "__init_big_call")
@@ -240,22 +244,26 @@ pub(crate) fn impl_imports(main_interface_path: &str, extra_interfaces: &[&str])
         let (parser::Interface { imports, .. }, interface_file) =
             parse_interface_file(interface_path, &mut value_types);
 
-        let interface_name = {
-            let raw = std::path::Path::new(interface_path)
-                .file_stem()
-                .unwrap()
-                .to_string_lossy()
-                .to_string();
+        let raw_interface_name = std::path::Path::new(interface_path)
+            .file_stem()
+            .unwrap()
+            .to_string_lossy()
+            .to_string();
 
-            syn::parse_str::<syn::Ident>(&raw).unwrap()
-        };
-
-        let getter_name: TokenStream = syn::parse_str(&format!("get_{interface_name}")).unwrap();
+        let getter_name: TokenStream = syn::parse_str(&format!(
+            "get_{}",
+            ascii_camel_or_pascal_to_snake_case(&raw_interface_name)
+        ))
+        .unwrap();
         let (trait_methods, mut linker_funcs) =
             gen_import_internals(imports, quote! { .#getter_name() });
 
+        let interface_trait_name = {
+            let interface_trait_name = ascii_snake_to_pascal_case(&raw_interface_name);
+            syn::parse_str::<syn::Ident>(&interface_trait_name).unwrap()
+        };
         let interface_trait = quote! {
-            pub trait #interface_name: Sized {
+            pub trait #interface_trait_name: Sized {
                 #( #trait_methods )*
             }
         };
@@ -264,9 +272,9 @@ pub(crate) fn impl_imports(main_interface_path: &str, extra_interfaces: &[&str])
         extra_interface_linker_funcs.append(&mut linker_funcs);
 
         let placeholder_type_name: TokenStream =
-            syn::parse_str(&format!("ExtraInterface_{interface_name}")).unwrap();
+            syn::parse_str(&format!("ExtraInterface{interface_trait_name}")).unwrap();
         let placeholder_type_declaration =
-            quote! { type #placeholder_type_name: extra_interfaces::#interface_name; };
+            quote! { type #placeholder_type_name: extra_interfaces::#interface_trait_name; };
         extra_interface_placeholder_types.push(placeholder_type_declaration);
 
         let getter_declaration: TokenStream = syn::parse_str(&format!(

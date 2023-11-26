@@ -172,7 +172,7 @@ mod host {
                     store,
                 };
                 {
-                    let (ptr, size) = exports
+                    let (ptr, _size) = exports
                         .alloc_bytes(
                             &[1_u8; super::__shared::BYTES_TO_STORE_U64_32_TIMES],
                         )
@@ -309,7 +309,7 @@ mod host {
     );
     pub mod imports {
         pub trait Imports {
-            type ExtraInterface_extra_wasm: extra_interfaces::extra_wasm;
+            type ExtraInterfaceExtraWasm: extra_interfaces::ExtraWasm;
             fn get_memory(&self) -> Option<wasmtime::Memory>;
             fn set_memory(&mut self, memory: wasmtime::Memory);
             fn get_free(&self) -> Option<super::FreeFunc>;
@@ -317,12 +317,12 @@ mod host {
             fn get_alloc(&self) -> Option<super::AllocFunc>;
             fn set_alloc(&mut self, alloc: super::AllocFunc);
             fn get_big_call_ptr(&self) -> super::Ptr;
-            fn get_extra_wasm(&self) -> &Self::ExtraInterface_extra_wasm;
+            fn get_extra_wasm(&self) -> &Self::ExtraInterfaceExtraWasm;
             fn multi_test_a(&self, a: i32);
             fn multi_test_b(&self, b: bool);
         }
         pub mod extra_interfaces {
-            pub trait extra_wasm: Sized {
+            pub trait ExtraWasm: Sized {
                 fn extra_a(&self, a: i32);
                 fn extra_b(&self, b: bool);
                 fn extra_option_i32(&self, option_i32: Option<i32>);
